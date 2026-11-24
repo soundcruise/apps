@@ -54,7 +54,7 @@ export function mountNativeViewer({host, contract, library, renderPaper,createPl
     const transport=node('div');transport.className='sv-transport';
     const play=button('▶ 再生','play',transport),start=button('先頭','start',transport),tempoLabel=node('label','BPM',transport),tempo=node('input',undefined,tempoLabel);
     tempo.type='number';tempo.min=20;tempo.max=400;tempo.setAttribute('aria-label','練習テンポ');tempo.dataset.viewerTempo='';
-    const audioSettings=button('音設定','playback-settings',transport),scrollButton=button('送り設定','scroll-settings',transport),scrollReset=button('BPMに戻す','scroll-reset',transport),follow=button('自動追従に戻る','follow',transport),here=button('ここから再生','here',transport);
+    const audioSettings=button('音設定','playback-settings',transport),scrollButton=button('自動スクロール設定','scroll-settings',transport),scrollReset=button('BPMに戻す','scroll-reset',transport),follow=button('自動追従に戻る','follow',transport),here=button('ここから再生','here',transport);
     follow.hidden=here.hidden=true;transport.append(summary);
     const repeatButton=button('繰り返し','repeat',transport);labelIcon(repeatButton,'loop','繰り返し');repeatButton.setAttribute('aria-pressed','false');styleRepeatButton(repeatButton);
     const focusMode=mountFocusMode(host,bar,{openSettings:()=>display.click()});
@@ -99,7 +99,7 @@ export function mountNativeViewer({host, contract, library, renderPaper,createPl
         if(sound&&doc.activeElement!==tempo)tempo.value=sound.settings.bpm;
         summary.textContent=current?(sound.phase==='counting'?'開始まで '+sound.countBeat+' / '+current.ticksPerBar/480:Math.min(Math.floor(sound.tick/current.ticksPerBar)+1,current.reader.read().document.score.bars.length)+' / '+current.reader.read().document.score.bars.length+'小節')+'　／　閲覧専用':'';
         follow.hidden=true;here.hidden=true;
-        syncExport(!!current&&!exporting);exportJSON.disabled=!current||externalBusy;printButton.disabled=!current;syncSoundModes();scrollButton.disabled=!current;scrollReset.hidden=!current||current.scroll.snapshot().mode!=='custom';scrollButton.textContent=current?.scroll.snapshot().mode==='custom'?'送り設定（カスタム）':'送り設定';selectionLabel.textContent=current?(playing?'演奏中：'+(sound.barIndex+1)+'小節':'選択：'+((candidate??sound.barIndex)+1)+'小節'):'';
+        syncExport(!!current&&!exporting);exportJSON.disabled=!current||externalBusy;printButton.disabled=!current;syncSoundModes();scrollButton.disabled=!current;scrollReset.hidden=!current||current.scroll.snapshot().mode!=='custom';scrollButton.textContent=current?.scroll.snapshot().mode==='custom'?'自動スクロール設定（カスタム）':'自動スクロール設定';selectionLabel.textContent=current?(playing?'演奏中：'+(sound.barIndex+1)+'小節':'選択：'+((candidate??sound.barIndex)+1)+'小節'):'';
         repeatButton.disabled=!current||!sound.totalTicks||['loading','counting'].includes(sound.phase);repeatButton.setAttribute('aria-pressed',String(repeat));
         selectionLabel.textContent=current?selectionRange?'選択：'+(selectionRange.start+1)+(selectionRange.start===selectionRange.end?'':'–'+(selectionRange.end+1))+'小節':playing?'演奏中：'+(sound.barIndex+1)+'小節':'全曲':'';
         scrollPanel?.refresh();panels?.refresh();
@@ -138,7 +138,11 @@ export function mountNativeViewer({host, contract, library, renderPaper,createPl
         renderPaper(current.reader,current.paper,{width:viewport.clientWidth,interactive:true,layoutHost:host});
         measureGeometry();
         const sound=current.player.visualSnapshot();if(sound.phase==='playing')paintPosition(sound);
-        if(current.player.snapshot().phase==='playing'&&following&&current.scroll.snapshot().enabled){restoring=false;scrollTo(geometry.target(current.scroll.target(current.player.visualSnapshot()),span(),scrollMax()));}
+        if(current.player.snapshot().phase==='playing'&&following&&current.scroll.snapshot().enabled){
+            restoring=false;
+            if(current.scroll.snapshot().origin==='viewport')restore(anchor);
+            startFollowing(sound);
+        }
         else settleAnchor(anchor);controls();
     }
     function measureGeometry(){
@@ -149,6 +153,19 @@ export function mountNativeViewer({host, contract, library, renderPaper,createPl
         barNodes=Array.from(current.paper.querySelectorAll('.sheet-bar[data-bar-number]'));
         const paperRect=current.paper.getBoundingClientRect();barGeometry=barNodes.map(e=>{const r=e.getBoundingClientRect();return {left:r.left-paperRect.left,y:r.top-paperRect.top,width:r.width,height:r.height};});
         geometry=createScrollMap(horizontal()?barNodes.map((e,i)=>{const r=e.getBoundingClientRect();return {startTick:i*current.ticksPerBar,top:r.left-top+viewport.scrollLeft,bottom:r.right-top+viewport.scrollLeft};}):Array.from(current.paper.querySelectorAll('.sheet-line[data-line-start]')).filter(e=>Number(e.dataset.lineStart)>0).map(e=>{const r=e.getBoundingClientRect();return {startTick:(Number(e.dataset.lineStart)-1)*current.ticksPerBar,top:r.top-top+viewport.scrollTop,bottom:r.bottom-top+viewport.scrollTop};}),current.player.snapshot().totalTicks);
+    }
+    // Keep the visual origin separate from the transport. Starting from the
+    // viewport must never seek the music or pull the paper to its highlight.
+    let viewportOrigin=null;
+    function scrollTarget(snapshot){
+        const settings=current.scroll.snapshot(),tick=current.scroll.target(snapshot);
+        if(settings.origin==='score')return geometry.target(tick,span(),scrollMax(),settings.position);
+        if(!viewportOrigin)viewportOrigin={offset:scrollValue(),tick};
+        return Math.max(0,Math.min(scrollMax(),viewportOrigin.offset+(tick-viewportOrigin.tick)*geometry.pixelsPerTick));
+    }
+    function startFollowing(snapshot){
+        following=true;viewportOrigin=null;
+        if(current.scroll.snapshot().enabled&&geometry)scrollTo(scrollTarget(snapshot));
     }
     let lastControlBar=-1,lastVisualBar=-1,lastCountBeat=-1;
     function stopFrames(){lastControlBar=lastVisualBar=lastCountBeat=-1;if(playFrame!==null)win.cancelAnimationFrame(playFrame);playFrame=null;lastFrameTime=0;highlight?.classList.remove('sv-playing');highlight=null;cursor.remove();}
@@ -170,8 +187,8 @@ export function mountNativeViewer({host, contract, library, renderPaper,createPl
         playFrame=null;if(!active||!current)return;const raw=current.player.snapshot(),s=current.player.visualSnapshot();
         if(!['playing','counting','loading'].includes(s.phase)&&raw.phase!=='playing'){stopFrames();if(raw.phase==='ended'){current.scroll.pause();if(!selectionRange)candidate=s.barIndex;restoreAnchor=captureAnchor();schedulePreferences();controls();}return;}
         if(s.phase==='playing'){
-            if(lastIteration!==s.iteration){lastIteration=s.iteration;current.scroll.seek(s.tick);if(following&&current.scroll.snapshot().enabled&&geometry)scrollTo(geometry.target(s.tick,span(),scrollMax()));}paintPosition(s);
-            if(following&&current.scroll.snapshot().enabled&&geometry)scrollTo(smoothFollow(scrollValue(),geometry.target(current.scroll.target(s),span(),scrollMax()),lastFrameTime?(time-lastFrameTime)/1000:1/60));
+            if(lastIteration!==s.iteration){lastIteration=s.iteration;current.scroll.seek(s.tick);if(following)startFollowing(s);}paintPosition(s);
+            if(following&&current.scroll.snapshot().enabled&&geometry)scrollTo(smoothFollow(scrollValue(),scrollTarget(s),lastFrameTime?(time-lastFrameTime)/1000:1/60));
         }
         lastFrameTime=time;
         if(raw.barIndex!==lastControlBar || s.barIndex!==lastVisualBar || raw.countBeat!==lastCountBeat){
@@ -247,7 +264,7 @@ export function mountNativeViewer({host, contract, library, renderPaper,createPl
         finally{item.saving=false;controls();}
     }
     save.onclick=()=>void saveCurrent();
-    function change(patch) {if(!current)return;const anchor=viewAnchor();current.reader.setPresentation({...current.reader.read().presentation,...patch});redraw(anchor);schedulePreferences();}
+    function change(patch) {if(!current)return;const anchor=captureAnchor();current.reader.setPresentation({...current.reader.read().presentation,...patch});redraw(anchor);schedulePreferences();}
     flow.onchange=()=>change({flow:flow.value});
     bindScoreZoom(viewport,{read:()=>current.reader.read().presentation.zoom,write:zoom=>change({zoom}),enabled:()=>active&&!!current,signal:events.signal});
     minus.onclick=()=>change({zoom:Math.max(MIN_SCORE_ZOOM,Math.round((current.reader.read().presentation.zoom-.1)*10)/10)});
@@ -264,14 +281,21 @@ export function mountNativeViewer({host, contract, library, renderPaper,createPl
         playback:()=>current.player.snapshot(),toggle:()=>play.click(),configure(value){try{if(value.bpm!==undefined)current.player.setTempo(value.bpm);else current.player.configure(value);schedulePreferences();controls();scrollPanel.refresh();}catch{notice('テンポはカウントイン終了後に変更できます。',true);}},
         begin(){presentationPreview=true;win.clearTimeout(preferenceTimer);},finish(accepted){presentationPreview=false;if(accepted&&!disposed){const item=current;void persistPreferences().then(ok=>{if(ok&&!disposed&&current===item)notice('表示設定をこのブラウザに保存しました。');});}},notify:notice});
     display.onclick=()=>{displayMenu.open=false;scrollPanel.close();panels.display(displaySummary);};audioSettings.onclick=()=>{scrollPanel.close();panels.audio(audioSettings);};
-    function changeScroll(patch){if(!current)return;current.scroll.configure(patch,current.player.visualSnapshot());following=true;if(patch.mode==='bpm'&&current.scroll.snapshot().enabled&&geometry)scrollTo(geometry.target(current.player.visualSnapshot().tick,span(),scrollMax()));schedulePreferences();controls();scrollPanel.refresh();}
-    const scrollPanel=createScrollSettings({host,read:()=>current.scroll.snapshot(),change:changeScroll,playback:()=>current.player.snapshot(),toggle:()=>play.click(),following:()=>following,resume:()=>follow.click()});scrollButton.onclick=()=>{panels.close();scrollPanel.open();};scrollReset.onclick=()=>changeScroll({mode:'bpm'});
-    play.onclick=()=>{if(!current)return;const p=current.player;if(['playing','counting','loading'].includes(p.snapshot().phase))p.pause();else{if(p.snapshot().phase==='ended'){const at=selectionRange?selectionRange.start*current.ticksPerBar:0;current.scroll.seek(at);p.seek(at);candidate=selectionRange?.start??0;}following=true;if(current.scroll.snapshot().enabled&&geometry)scrollTo(geometry.target(current.scroll.target(p.snapshot()),span(),scrollMax()));void p.play().then(ok=>{if(ok&&current?.player===p&&p.snapshot().warnings.length)notice(p.snapshot().warnings.slice(0,2).join('、'),true);});}};
+    function changeScroll(patch){if(!current)return;const sound=current.player.visualSnapshot();current.scroll.configure(patch,sound);
+        following=true;viewportOrigin=null;
+        if(current.scroll.snapshot().enabled&&geometry&&(sound.phase==='playing'||selectionRange||patch.mode==='bpm'))startFollowing(sound);
+        schedulePreferences();controls();scrollPanel.refresh();}
+    const scrollPanel=createScrollSettings({host,read:()=>current.scroll.snapshot(),change:changeScroll,horizontal,setTempo:setPracticeTempo,playback:()=>({...current.player.snapshot(),ticksPerBar:current.ticksPerBar}),toggle:()=>play.click(),following:()=>following,resume:()=>follow.click()});scrollButton.onclick=()=>{panels.close();scrollPanel.open();};scrollReset.onclick=()=>changeScroll({mode:'bpm'});
+    play.onclick=()=>{if(!current)return;const p=current.player;if(['playing','counting','loading'].includes(p.snapshot().phase))p.pause();else{if(p.snapshot().phase==='ended'){const at=selectionRange?selectionRange.start*current.ticksPerBar:0;current.scroll.seek(at);p.seek(at);candidate=selectionRange?.start??0;}startFollowing(p.snapshot());void p.play().then(ok=>{if(ok&&current?.player===p&&p.snapshot().warnings.length)notice(p.snapshot().warnings.slice(0,2).join('、'),true);});}};
     start.onclick=()=>{if(current?.player.snapshot().totalTicks){selectionRange=null;current.player.setRange(0,current.player.snapshot().totalTicks,repeat);current.player.seek(0);current.scroll.seek(0);}candidate=null;following=true;restoreAnchor=null;restore(null);controls();schedulePreferences();};
-    here.onclick=()=>{if(current&&candidate!==null){current.scroll.seek(candidate*current.ticksPerBar);current.player.seek(candidate*current.ticksPerBar);following=true;candidate=null;if(geometry)scrollTo(geometry.target(current.scroll.target(current.player.visualSnapshot()),span(),scrollMax()));void current.player.play();}};
-    follow.onclick=()=>{following=true;if(current&&geometry)scrollTo(geometry.target(current.scroll.target(current.player.visualSnapshot()),span(),scrollMax()));controls();};
-    tempo.onchange=()=>{try{current.player.setTempo(Number(tempo.value));scrollPanel.refresh();tempo.removeAttribute('aria-invalid');schedulePreferences();}catch{tempo.setAttribute('aria-invalid','true');notice('テンポは20〜400で入力してください。',true);}};
-    function selectRange(a,b,extend=false){if(!current)return;const anchor=extend&&selectionRange?selectionRange.start:a;selectionRange={start:Math.min(anchor,b),end:Math.max(anchor,b)};candidate=selectionRange.start;applyRange();current.player.seek(candidate*current.ticksPerBar);current.scroll.seek(candidate*current.ticksPerBar);lastIteration=0;following=true;viewport.focus({preventScroll:true});controls();schedulePreferences();}
+    here.onclick=()=>{if(current&&candidate!==null){current.scroll.seek(candidate*current.ticksPerBar);current.player.seek(candidate*current.ticksPerBar);following=true;candidate=null;startFollowing(current.player.visualSnapshot());void current.player.play();}};
+    follow.onclick=()=>{if(current)startFollowing(current.player.visualSnapshot());controls();};
+    function setPracticeTempo(value){current.player.setTempo(value);schedulePreferences();controls();}
+    tempo.onchange=()=>{try{setPracticeTempo(Number(tempo.value));tempo.removeAttribute('aria-invalid');schedulePreferences();}catch{tempo.setAttribute('aria-invalid','true');notice('テンポは20〜400で入力してください。',true);}};
+    function selectRange(a,b,extend=false){if(!current)return;const anchor=extend&&selectionRange?selectionRange.start:a;selectionRange={start:Math.min(anchor,b),end:Math.max(anchor,b)};candidate=selectionRange.start;applyRange();current.player.seek(candidate*current.ticksPerBar);current.scroll.seek(candidate*current.ticksPerBar);lastIteration=0;following=true;
+        const prefs=current.scroll.snapshot();
+        if(prefs.enabled&&prefs.origin==='score'&&prefs.position!=='smooth')startFollowing(current.player.visualSnapshot());
+        viewport.focus({preventScroll:true});controls();schedulePreferences();}
     function applyRange(){const p=current.player,total=p.snapshot().totalTicks;return p.setRange(selectionRange?selectionRange.start*current.ticksPerBar:0,selectionRange&&(repeat||selectionRange.end>selectionRange.start)?(selectionRange.end+1)*current.ticksPerBar:total,repeat);}
     function clearRange(){if(!current||!current.player.snapshot().totalTicks)return;selectionRange=null;current.player.setRange(0,current.player.snapshot().totalTicks,repeat);controls();schedulePreferences();}
     repeatButton.onclick=()=>{if(!current)return;repeat=!repeat;const p=current.player,playing=['playing','counting'].includes(p.snapshot().phase);applyRange();if(playing)void p.play();controls();schedulePreferences();viewport.focus({preventScroll:true});};
@@ -282,7 +306,7 @@ export function mountNativeViewer({host, contract, library, renderPaper,createPl
     viewport.addEventListener('keydown',e=>{if(['ArrowUp','ArrowDown','PageUp','PageDown','Home','End',' '].includes(e.key))manual();},{signal:events.signal});
     const observer=new win.ResizeObserver(()=>{
         if(!active||!current||!viewport.clientWidth||lastWidth===viewport.clientWidth)return;
-        lastWidth=viewport.clientWidth;const anchor=restoreAnchor||captureAnchor();
+        lastWidth=viewport.clientWidth;const anchor=captureAnchor();
         if(resizeFrame!==null)win.cancelAnimationFrame(resizeFrame);
         resizeFrame=win.requestAnimationFrame(()=>{resizeFrame=null;redraw(anchor);});
     });

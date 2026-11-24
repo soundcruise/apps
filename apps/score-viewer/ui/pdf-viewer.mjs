@@ -27,7 +27,7 @@ export function mountPDFViewer({host,library,requestOpen,playbackChanged=()=>{},
     const status=node('p','');status.className='sv-status';status.setAttribute('role','status');status.dataset.pdfStatus='';
     const viewport=node('div');viewport.className='sv-viewport sv-pdf-viewport';viewport.tabIndex=0;viewport.setAttribute('aria-label','閲覧専用のPDF');viewport.setAttribute('role','region');
     const transport=node('div');transport.className='sv-transport';
-    const play=button('▶ 自動送り','play',transport),start=button('先頭','start',transport),settingsButton=button('送り設定','settings',transport),here=button('この位置から','here',transport),follow=button('自動追従に戻る','follow',transport);
+    const play=button('▶ 自動送り','play',transport),start=button('先頭','start',transport),settingsButton=button('自動スクロール設定','settings',transport),here=button('この位置から','here',transport),follow=button('自動追従に戻る','follow',transport);
     const previous=button('‹','previous',transport),pageLabel=node('label','ページ',transport),pageInput=node('input',undefined,pageLabel),next=button('›','next',transport),summary=node('span','',transport);
     previous.setAttribute('aria-label','前のページ');next.setAttribute('aria-label','次のページ');pageInput.type='number';pageInput.min=1;pageInput.setAttribute('aria-label','移動先のページ');pageInput.dataset.pdfPageInput='';summary.className='sv-summary';
     let selectedPage=null,selectedMarker=null;
@@ -46,22 +46,36 @@ export function mountPDFViewer({host,library,requestOpen,playbackChanged=()=>{},
         syncExport(true);printButton.disabled=busy||moving;syncPlaybackButton(play,s.phase,{disabled:busy||current.paper.hasErrors(),idle:'▶ 自動送り'});const preview=dialog?.querySelector('[data-pdf-setting-play]');if(preview)syncPlaybackButton(preview,s.phase,{disabled:play.disabled,idle:'▶ 自動送り'});play.disabled=busy||current.paper.hasErrors();minus.disabled=busy||current.zoom<=MIN_SCORE_ZOOM;plus.disabled=busy||current.zoom>=MAX_SCORE_ZOOM;
         const resume=dialog?.querySelector('[data-scroll-resume]');if(resume)resume.hidden=!current.autoScroll||following;menuZoom.querySelectorAll('button')[1].textContent=current.zoom===1?'幅合わせ':Math.round(current.zoom*100)+'%';fit.textContent=current.zoom===1?'幅合わせ':Math.round(current.zoom*100)+'%';follow.hidden=following||!moving;
         const page=Math.min(current.data.sizes.length,Math.floor(moving?s.position:anchor?.position??viewPosition())+1);if(doc.activeElement!==pageInput)pageInput.value=page;pageInput.max=current.data.sizes.length;
-        const selected=moving?null:current.paper.root.querySelector('[data-pdf-page="'+(s.pageIndex+1)+'"]');if(selected!==selectedPage){selectedPage?.classList.remove('sv-selected');selectedMarker?.remove();selectedPage=selected;selectedMarker=null;}if(selectedPage){selectedPage.classList.add('sv-selected');if(!selectedMarker){selectedMarker=node('span','',selectedPage);selectedMarker.className='sv-pdf-selection';}selectedMarker.style.top=(s.position===s.pages?1:s.ratio)*100+'%';}
+        const showMarker=!moving||(current.autoScroll&&!current.fromViewport&&current.positionInView>0);const selected=!showMarker?null:current.paper.root.querySelector('[data-pdf-page="'+(s.pageIndex+1)+'"]');if(selected!==selectedPage){selectedPage?.classList.remove('sv-selected');selectedMarker?.remove();selectedPage=selected;selectedMarker=null;}if(selectedPage){selectedPage.classList.add('sv-selected');if(!selectedMarker?.isConnected){selectedMarker=node('span','',selectedPage);selectedMarker.className='sv-pdf-selection';}selectedMarker.style.top=(s.position===s.pages?1:s.ratio)*100+'%';}
         positionLabel.textContent=(moving?'送り中：':'選択：')+(s.pageIndex+1)+'ページ';
         summary.textContent='/ '+current.data.sizes.length+'　PDF・閲覧専用';previous.disabled=page<=1;next.disabled=page>=current.data.sizes.length;[minus,fit,plus].forEach((source,i)=>{menuZoom.querySelectorAll('button')[i].disabled=source.disabled;});fileMenu.sync(busy||moving);
     }
     function stopFrame(){if(frame!==null)win.cancelAnimationFrame(frame);frame=null;}
     function scheduleSave(){win.clearTimeout(saveTimer);saveTimer=win.setTimeout(()=>void persist(),180);}
-    async function persist(){if(!current)return;const item=current;try{await library.savePreferences(item.entryId,item.data.hash,{version:1,kind:'pdf',zoom:item.zoom,anchor:anchor||capture(),position:item.clock.snapshot().position,autoScroll:item.autoScroll,settings:item.clock.snapshot().settings});return true;}catch{if(current===item)notice('PDFの閲覧設定を保存できませんでした。現在の表示はそのまま残しています。',true);return false;}}
+    async function persist(){if(!current)return;const item=current;try{await library.savePreferences(item.entryId,item.data.hash,{version:1,kind:'pdf',zoom:item.zoom,anchor:anchor||capture(),position:item.clock.snapshot().position,autoScroll:item.autoScroll,fromViewport:item.fromViewport,positionInView:item.positionInView,settings:item.clock.snapshot().settings});return true;}catch{if(current===item)notice('PDFの閲覧設定を保存できませんでした。現在の表示はそのまま残しています。',true);return false;}}
     function pause(){current?.clock.pause();stopFrame();controls();playbackChanged();scheduleSave();}
+    let viewportLeadIn=0;
+    function followClock(position){
+        // The first page has a top margin before PDF position zero.
+        const inset=current.fromViewport?viewportLeadIn:current.positionInView*Math.max(0,viewport.clientHeight-3);
+        viewport.scrollTop=current.paper.topAt(position)-inset;
+        anchor=capture();
+    }
+    function syncClockToScreen(){
+        const wasPlaying=current.clock.snapshot().phase==='playing';
+        const position=viewPosition();
+        viewportLeadIn=current.paper.topAt(position)-viewport.scrollTop;
+        current.clock.seek(position);
+        if(wasPlaying)current.clock.play();
+    }
     function animate(){frame=null;if(!active||!current)return;const s=current.clock.snapshot();if(s.phase!=='playing'){pause();return;}
-        if(following&&current.autoScroll){viewport.scrollTop=current.paper.topAt(s.position);anchor={position:s.position,x:capture().x};}
+        if(following&&current.autoScroll){followClock(s.position);}
         current.paper.update(viewport.scrollTop,viewport.clientHeight);controls();frame=win.requestAnimationFrame(animate);
     }
     function restore(value){if(!current)return;restoring=true;anchor=value;viewport.scrollTop=current.paper.topAt(value?.position||0);viewport.scrollLeft=(value?.x||0)*Math.max(0,viewport.scrollWidth-viewport.clientWidth);
         win.requestAnimationFrame(()=>{restoring=false;});}
-    function redraw(){if(!current||!active)return;const s=current.clock.snapshot(),at=s.phase==='playing'&&following&&current.autoScroll?{position:s.position,x:capture().x}:anchor||capture();
-        current.paper.layout(viewport.clientWidth,current.zoom,win.devicePixelRatio);restore(at);current.paper.update(viewport.scrollTop,viewport.clientHeight);controls();}
+    function redraw(){if(!current||!active)return;const s=current.clock.snapshot(),at=anchor||capture();
+        current.paper.layout(viewport.clientWidth,current.zoom,win.devicePixelRatio);if(s.phase==='playing'&&following&&current.autoScroll)followClock(s.position);else restore(at);current.paper.update(viewport.scrollTop,viewport.clientHeight);controls();}
     async function openBytes(bytes,{name,saved=false,entryId,libraryTitle,isCurrent=()=>true}={}){
         let data=null,paper=null;
         try{
@@ -77,7 +91,7 @@ export function mountPDFViewer({host,library,requestOpen,playbackChanged=()=>{},
             if(Number.isFinite(pref?.position))clock.seek(Math.max(0,Math.min(data.sizes.length,pref.position)));
             if(current)await persist();if(!isCurrent()||disposed){paper.dispose();await data.dispose();return false;}
             stopFrame();closeDialog();if(current){current.paper.dispose();void current.data.dispose().catch(()=>{});}
-            selectedPage?.classList.remove('sv-selected');selectedMarker?.remove();selectedPage=selectedMarker=null;current={data,paper,clock,zoom,autoScroll:pref?.autoScroll!==false,saved,saving:false,entryId:libraryId,libraryTitle:libraryTitle||data.name};loadNumber++;following=true;nameElement();viewport.replaceChildren(paper.root);anchor=validAnchor(pref?.anchor,data.sizes.length);restore(anchor);controls();
+            selectedPage?.classList.remove('sv-selected');selectedMarker?.remove();selectedPage=selectedMarker=null;current={data,paper,clock,zoom,autoScroll:pref?.autoScroll!==false,fromViewport:pref?.fromViewport===true,positionInView:[0,.5,1].includes(pref?.positionInView)?pref.positionInView:0,saved,saving:false,entryId:libraryId,libraryTitle:libraryTitle||data.name};loadNumber++;following=true;nameElement();viewport.replaceChildren(paper.root);anchor=validAnchor(pref?.anchor,data.sizes.length);restore(anchor);controls();
             notice(saved?'':'PDFを開きました。「ライブラリに追加」であとから開き直せます。');viewport.focus({preventScroll:true});return true;
         }catch(error){paper?.dispose();if(data)await data.dispose().catch(()=>{});if(isCurrent()&&!disposed)notice(errors[error.message]||'PDFを開けませんでした。現在の譜面は保持しています。',true);return false;}
     }
@@ -85,10 +99,24 @@ export function mountPDFViewer({host,library,requestOpen,playbackChanged=()=>{},
     function nameElement(){name.textContent=current.libraryTitle;name.title=current.libraryTitle;}
     function closeDialog(){dialog?.close();}
     function modal(title){if(dialog)return null;const d=node('dialog');dialog=d;d.className='sv-settings sv-scroll-settings';d.setAttribute('aria-label',title);const h=node('header',undefined,d);node('h2',title,h);const close=button('閉じる','dialog-close',h);close.onclick=()=>d.close();d.addEventListener('keydown',e=>e.stopPropagation());d.addEventListener('close',()=>{if(dialog===d)dialog=null;d.remove();settingsButton.focus({preventScroll:true});});return {d,h};}
-    function settings(){if(!current)return;const ui=modal('PDFの送り設定');if(!ui)return;const {d,h}=ui;d.classList.add('sv-modeless');d.dataset.viewerNonmodal='';const preview=button('▶ 自動送り','settings-play',h);preview.dataset.pdfSettingPlay='';preview.onclick=()=>play.click();const initial=current.clock.snapshot().settings;
-        const help=button('?','settings-help',h),note=node('p','自動スクロールをOFFにしても、演奏位置の時計は進みます。手動スクロール後は「スクロール再開」で演奏位置へ戻れます。',d);note.className='sv-settings-note';note.hidden=true;help.setAttribute('aria-label','送り設定のヘルプ');help.setAttribute('aria-expanded','false');help.onclick=()=>{note.hidden=!note.hidden;help.setAttribute('aria-expanded',String(!note.hidden));};
+    function settings(){if(!current)return;const ui=modal('PDFの自動スクロール設定');if(!ui)return;const {d,h}=ui;d.classList.add('sv-modeless');d.dataset.viewerNonmodal='';const preview=button('▶ 自動送り','settings-play',h);preview.dataset.pdfSettingPlay='';preview.onclick=()=>play.click();const initial=current.clock.snapshot().settings;
+        const help=button('?','settings-help',h),note=node('p','自動スクロールをOFFにしても、演奏位置の時計は進みます。「今の画面から流す」は現在の表示位置から開始します。「さらに詳細」の「拍数で送る」で、送り用BPMとページの拍数を指定できます。',d);note.className='sv-settings-note';note.hidden=true;help.setAttribute('aria-label','自動スクロール設定のヘルプ');help.setAttribute('aria-expanded','false');help.onclick=()=>{note.hidden=!note.hidden;help.setAttribute('aria-expanded',String(!note.hidden));};
         const autoLabel=node('label','自動スクロール',d),auto=node('input',undefined,autoLabel);auto.type='checkbox';auto.checked=current.autoScroll;auto.dataset.autoScroll='';autoLabel.className='sv-auto-scroll';autoLabel.prepend(auto);const content=node('div',undefined,d);content.hidden=!current.autoScroll;
-        auto.onchange=()=>{current.autoScroll=auto.checked;following=true;content.hidden=!auto.checked;controls();scheduleSave();};const resume=button('スクロール再開','scroll-resume',d);resume.dataset.scrollResume='';resume.hidden=!current.autoScroll||following;resume.onclick=()=>follow.click();
+        auto.onchange=()=>{current.autoScroll=auto.checked;if(auto.checked&&current.fromViewport)syncClockToScreen();following=true;content.hidden=!auto.checked;controls();scheduleSave();};const resume=button('スクロール再開','scroll-resume',d);resume.dataset.scrollResume='';resume.hidden=!current.autoScroll||following;resume.onclick=()=>follow.click();
+        const originLabel=node('label','スクロールの開始位置',content),origin=node('select',undefined,originLabel);
+        originLabel.className='sv-scroll-origin';
+        for(const [key,text] of [['clock','選んだ演奏位置から'],['viewport','今の画面から流す']])node('option',text,origin).value=key;
+        origin.value=current.fromViewport?'viewport':'clock';
+        const placementLabel=node('label','選択位置の表示',content),position=node('select',undefined,placementLabel);
+        placementLabel.className='sv-scroll-origin';placementLabel.hidden=current.fromViewport;
+        for(const [key,text] of [[0,'上側'],[.5,'中央'],[1,'下側']])node('option',text,position).value=key;
+        position.value=current.positionInView;
+        position.onchange=()=>{current.positionInView=Number(position.value);followClock(current.clock.snapshot().position);controls();scheduleSave();};
+        origin.onchange=()=>{
+            current.fromViewport=origin.value==='viewport';placementLabel.hidden=current.fromViewport;
+            if(current.fromViewport&&current.autoScroll&&current.clock.snapshot().phase==='playing')syncClockToScreen();
+            controls();scheduleSave();
+        };
         const speedLabel=node('label','送り速度',content),speed=node('input',undefined,speedLabel),speedValue=node('output','',speedLabel);speed.type='range';speed.min=0;speed.max=100;speed.dataset.pdfSpeed='';speed.setAttribute('aria-label','PDFの送り速度');const sec=initial.mode==='seconds'?initial.seconds:initial.beats*60/initial.bpm;speed.value=Math.max(0,Math.min(100,100*Math.log(120/sec)/Math.log(16)));const ticks=node('div',undefined,content);ticks.className='sv-speed-ticks';for(const text of ['遅い','普通','速い'])node('span',text,ticks);
         const advanced=node('details',undefined,content);advanced.dataset.pdfAdvanced='';node('summary','さらに詳細',advanced);const fields=node('div',undefined,advanced);
         const label=(text)=>node('label',text,fields),mode=node('select',undefined,label('送り方'));
@@ -101,7 +129,7 @@ export function mountPDFViewer({host,library,requestOpen,playbackChanged=()=>{},
         const message=node('p','',d);message.setAttribute('role','status');const apply=button('完了','settings-save',h);
         apply.onclick=()=>{const visible=mode.value==='seconds'?[seconds]:[bpm,beats,override];if(visible.some(e=>!e.checkValidity())){visible.find(e=>!e.checkValidity()).reportValidity();return;}
             const pageBeats={...initial.pageBeats};if(override.value)pageBeats[at]=Number(override.value);else delete pageBeats[at];
-            current.clock.configure(normalizePDFSettings({configured:true,mode:mode.value,seconds:Number(seconds.value),bpm:Number(bpm.value),beats:Number(beats.value),pageBeats},current.data.sizes.length));controls();d.close();void persist().then(ok=>{if(ok)notice('PDFの送り設定をこのブラウザに保存しました。');});};
+            current.clock.configure(normalizePDFSettings({configured:true,mode:mode.value,seconds:Number(seconds.value),bpm:Number(bpm.value),beats:Number(beats.value),pageBeats},current.data.sizes.length));controls();d.close();void persist().then(ok=>{if(ok)notice('PDFの自動スクロール設定をこのブラウザに保存しました。');});};
         bindOutsideDismiss(d);d.show();
     }
     open.onclick=()=>input.click();openJSON.onclick=()=>jsonInput.click();
@@ -154,9 +182,9 @@ export function mountPDFViewer({host,library,requestOpen,playbackChanged=()=>{},
         }finally{if(librarySave===attempt)librarySave=null;item.saving=false;controls();}
     }
     save.onclick=()=>void saveCurrent();
-    play.onclick=()=>{if(!current)return;if(current.clock.snapshot().phase==='playing'){pause();return;}if(current.clock.snapshot().phase==='ended')current.clock.seek(0);following=true;current.clock.play();controls();playbackChanged();frame=win.requestAnimationFrame(animate);};
+    play.onclick=()=>{if(!current)return;if(current.clock.snapshot().phase==='playing'){pause();return;}if(current.autoScroll&&current.fromViewport)syncClockToScreen();else if(current.clock.snapshot().phase==='ended')current.clock.seek(0);following=true;current.clock.play();controls();playbackChanged();frame=win.requestAnimationFrame(animate);};
     function jump(position){pause();current.clock.seek(position);following=true;restore({position,x:capture().x});current.paper.update(viewport.scrollTop,viewport.clientHeight);controls();scheduleSave();}
-    start.onclick=()=>jump(0);here.onclick=()=>{jump(viewPosition());play.click();};follow.onclick=()=>{following=true;restore({position:current.clock.snapshot().position,x:capture().x});controls();};
+    start.onclick=()=>jump(0);here.onclick=()=>{jump(viewPosition());play.click();};follow.onclick=()=>{following=true;if(current.fromViewport)syncClockToScreen();followClock(current.clock.snapshot().position);controls();};
     settingsButton.onclick=settings;previous.onclick=()=>jump(Math.max(0,Math.floor(viewPosition())-1));next.onclick=()=>jump(Math.min(current.data.sizes.length-1,Math.floor(viewPosition())+1));
     pageInput.onchange=()=>{if(pageInput.checkValidity())jump(Number(pageInput.value)-1);};
     const setZoom=value=>{if(!current)return;anchor=capture();current.zoom=Math.max(MIN_SCORE_ZOOM,Math.min(MAX_SCORE_ZOOM,Math.round(value*100)/100));redraw();scheduleSave();};minus.onclick=()=>setZoom(current.zoom-.1);plus.onclick=()=>setZoom(current.zoom+.1);fit.onclick=()=>setZoom(1);

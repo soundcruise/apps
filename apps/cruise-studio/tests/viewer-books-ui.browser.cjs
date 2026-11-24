@@ -20,12 +20,63 @@ for(const engine of ['chrome','webkit'])test('books/menu/output UI '+engine,asyn
   await p.click('[data-bar-number="2"]',{position:{x:4,y:4}});await p.click('[data-viewer-action=repeat]');assert.equal((await state(p)).range.end,3840);await p.click('[data-viewer-action=play]');await p.waitForFunction(()=>CruiseViewer.view.playback().iteration>=1);assert.equal((await state(p)).phase,'playing');await p.click('[data-viewer-action=play]');await p.click('[data-viewer-action=repeat]');await p.click('[data-bar-number="1"]',{position:{x:4,y:4}});await p.locator('[data-bar-number="2"]').click({position:{x:4,y:4},modifiers:['Shift']});assert.equal((await state(p)).range.end,3840);await p.click('[data-viewer-action=play]');await p.waitForFunction(()=>CruiseViewer.view.playback().phase==='ended');assert.equal((await state(p)).tick,3840);await p.waitForFunction(()=>!document.querySelector('[data-viewer-playhead]'));assert.equal(await p.locator('.sv-selected').count(),2);await p.waitForTimeout(320);assert.equal(await p.locator('[data-viewer-playhead]').count(),0);const saved=await p.evaluate(async({entryId,revisionId})=>{const{createViewerLibrary}=await import('/apps/score-viewer/core/library.mjs'),{createStudioViewerContract}=await import('/apps/cruise-studio/js/modules/sheet-cruise/viewer-contract.mjs');const lib=createViewerLibrary({indexedDB,codec:createStudioViewerContract({schema:CruiseStudio.model.schema2}).codec});try{return await lib.readPreferences(entryId,revisionId);}finally{await lib.close();}},{entryId:(await read(p)).entryId,revisionId:f.metadata.revisionId});assert.equal(saved.playback.tick,3840);
  }));
  await t.test('scroll switch and contextual resume work without changing audio; grouped mobile transport',()=>fresh(async p=>{
-  await prepare(p);await menu(p,'[data-viewer-action=scroll-settings]');const d=p.getByRole('dialog',{name:'譜面の送り設定'});assert(await d.locator('.sv-settings-note').isHidden());await d.locator('[data-auto-scroll]').uncheck();assert.equal((await read(p)).scroll.enabled,false);assert(await d.locator('.sv-scroll-content').isHidden());await d.getByRole('button',{name:'閉じる',exact:true}).click();const before=await p.locator('.sv-viewport').evaluate(e=>e.scrollTop);await p.click('[data-viewer-action=play]');await p.waitForTimeout(950);assert((await state(p)).tick>1920);assert.equal(await p.locator('.sv-viewport').evaluate(e=>e.scrollTop),before);await p.click('[data-viewer-action=play]');
+  await prepare(p);await menu(p,'[data-viewer-action=scroll-settings]');const d=p.getByRole('dialog',{name:'譜面の自動スクロール設定'});assert(await d.locator('.sv-settings-note').isHidden());await d.locator('[data-auto-scroll]').uncheck();assert.equal((await read(p)).scroll.enabled,false);assert(await d.locator('.sv-scroll-content').isHidden());await d.getByRole('button',{name:'閉じる',exact:true}).click();const before=await p.locator('.sv-viewport').evaluate(e=>e.scrollTop);await p.click('[data-viewer-action=play]');await p.waitForTimeout(950);assert((await state(p)).tick>1920);assert.equal(await p.locator('.sv-viewport').evaluate(e=>e.scrollTop),before);await p.click('[data-viewer-action=play]');
   await menu(p,'[data-viewer-action=scroll-settings]');await d.locator('[data-auto-scroll]').check();await d.getByRole('button',{name:'閉じる',exact:true}).click();await p.click('[data-viewer-action=play]');await p.locator('.sv-viewport').hover();await p.locator('.sv-viewport').evaluate(v=>{window.__viewerWheel=false;v.addEventListener('wheel',()=>window.__viewerWheel=true,{once:true});});await p.mouse.wheel(0,100);await p.waitForFunction(()=>window.__viewerWheel);await menu(p,'[data-viewer-action=scroll-settings]');await d.locator('[data-scroll-resume]').waitFor();await d.locator('[data-scroll-resume]').click();assert(await d.locator('[data-scroll-resume]').isHidden());await d.getByRole('button',{name:'閉じる',exact:true}).click();await p.click('[data-viewer-action=play]');
-  for(const viewport of [{width:1440,height:1000},{width:390,height:844},{width:844,height:390}]){await p.setViewportSize(viewport);await p.waitForTimeout(100);const a=await p.locator('[data-viewer-action=play]').boundingBox(),b=await p.locator('.sv-transport').boundingBox();const tempo=await p.locator('.sv-tempo-group').boundingBox(),sound=await p.locator(viewport.width<=1050?'.sv-sound-select':'.sv-sound-modes').boundingBox();assert(a.x+a.width<=tempo.x&&tempo.x+tempo.width<=sound.x+1);assert(Math.abs(a.y+a.height/2-tempo.y-tempo.height/2)<2);assert(Math.abs((a.x+sound.x+sound.width)/2-b.x-b.width/2)<3);assert(await p.locator(viewport.width<=1050?'.sv-sound-select':'.sv-sound-modes').isVisible());assert(await p.locator('body').evaluate(e=>e.scrollWidth<=innerWidth+2));await shot(p,'transport-'+viewport.width);}
+  for(const viewport of [{width:1440,height:1000},{width:390,height:844},{width:844,height:390}]){await p.setViewportSize(viewport);await p.waitForTimeout(100);const a=await p.locator('[data-viewer-action=play]').boundingBox(),b=await p.locator('.sv-transport').boundingBox();const tempo=await p.locator('.sv-tempo-group').boundingBox(),sound=await p.locator(viewport.width<=1050?'.sv-sound-select':'.sv-sound-modes').boundingBox();assert(a.x+a.width<=tempo.x&&tempo.x+tempo.width<=sound.x+1);assert(Math.abs(a.y+a.height/2-tempo.y-tempo.height/2)<2);const audio=await p.locator('.sv-transport [data-viewer-action=playback-settings]').boundingBox();const end=audio?audio.x+audio.width:sound.x+sound.width;assert(Math.abs((a.x+end)/2-b.x-b.width/2)<3);assert(await p.locator(viewport.width<=1050?'.sv-sound-select':'.sv-sound-modes').isVisible());assert(await p.locator('body').evaluate(e=>e.scrollWidth<=innerWidth+2));await shot(p,'transport-'+viewport.width);}
+ }));
+ await t.test('relative motion starts at the viewport, the BPM is shared, and pinned row placement is independent',()=>fresh(async p=>{
+  await prepare(p);await p.setViewportSize({width:1440,height:560});
+  const vp=p.locator('.sv-viewport'),top=()=>vp.evaluate(e=>e.scrollTop);
+  await menu(p,'[data-viewer-action=scroll-settings]');
+  const d=p.getByRole('dialog',{name:'譜面の自動スクロール設定'}),origin=d.getByLabel('スクロールの動き'),position=d.getByLabel('演奏位置の表示');
+  await origin.selectOption('viewport');
+  assert(await position.isHidden());
+  const tempo=d.getByLabel('演奏とスクロールのBPM');await tempo.fill('120');await tempo.press('Tab');
+  assert.equal((await state(p)).settings.bpm,120);
+  const before=await vp.evaluate(e=>{e.scrollTop=(e.scrollHeight-e.clientHeight)*.4;return e.scrollTop;});
+  assert(before>50);
+  await d.getByRole('button',{name:'▶ 再生'}).click();
+  await p.waitForFunction(()=>CruiseViewer.view.playback().phase==='playing');
+  assert(Math.abs(await top()-before)<12);
+  await p.waitForFunction(y=>document.querySelector('.sv-viewport').scrollTop>y+8,before);
+  assert.equal((await state(p)).barIndex,0);
+  await d.getByRole('button',{name:'Ⅱ 一時停止'}).click();
+  await origin.selectOption('score');
+  await position.selectOption('center');await d.getByRole('button',{name:'閉じる'}).click();
+  await p.locator('[data-bar-number="8"]').click({position:{x:4,y:4}});
+  const middle=await top();
+  await menu(p,'[data-viewer-action=scroll-settings]');await position.selectOption('start');const upper=await top();
+  await position.selectOption('end');assert(upper>middle&&middle>await top());
+ }));
+ await t.test('horizontal flow uses the visible left edge and restores the saved scrolling choices',()=>fresh(async p=>{
+  await prepare(p);
+  await p.getByLabel('譜面の配置',{exact:true}).selectOption('horizontal');
+  await require('./helpers/viewer-regression-choices.cjs').saveFromToolbar(p);
+  await p.waitForFunction(()=>!CruiseViewer.view.hasUnsaved());
+  await menu(p,'[data-viewer-action=scroll-settings]');const d=p.getByRole('dialog',{name:'譜面の自動スクロール設定'});
+  await d.getByLabel('演奏位置の表示').selectOption({label:'右側'});
+  await d.getByLabel('スクロールの動き').selectOption('viewport');
+  await d.getByRole('button',{name:'閉じる'}).click();
+  await p.waitForTimeout(300);await p.reload();await p.waitForFunction(()=>window.CruiseViewer?.view.read()?.scroll);
+  const settings=(await read(p)).scroll;assert.equal(settings.position,'end');assert.equal(settings.origin,'viewport');
+  const x=await p.locator('.sv-viewport').evaluate(e=>{e.scrollLeft=200;return e.scrollLeft;});
+  assert(x>=199);await p.click('[data-viewer-action=play]');
+  await p.waitForFunction(x=>document.querySelector('.sv-viewport').scrollLeft>x+8,x);
+  await p.click('[data-viewer-action=play]');
+ }));
+ await t.test('PDF starts from the visible page and keeps running after manual scroll and resume',()=>fresh(async p=>{
+  const bytes=Array.from(fs.readFileSync(path.join(__dirname,'fixtures/viewer-pdf/mixed.pdf')));
+  assert(await p.evaluate(bytes=>CruiseViewer.view.openBytes(new Uint8Array(bytes),{name:'mixed.pdf'}),bytes));
+  await menu(p,'[data-pdf-action=settings]');const d=p.getByRole('dialog',{name:'PDFの自動スクロール設定'}),vp=p.locator('.sv-pdf-viewport');
+  await d.getByLabel('スクロールの開始位置').selectOption('viewport');
+  const before=await vp.evaluate(e=>{e.scrollTop=300;return e.scrollTop;});assert(before>=299);
+  await d.locator('[data-pdf-setting-play]').click();
+  await p.waitForFunction(y=>document.querySelector('.sv-pdf-viewport').scrollTop>y+3,before);
+  await vp.dispatchEvent('wheel');await vp.evaluate(e=>e.scrollTop+=100);
+  await d.locator('[data-scroll-resume]').click();assert.equal((await state(p)).phase,'playing');
  }));
  await t.test('PDF auto-scroll OFF keeps the viewport fixed while its clock runs and survives reopen',()=>fresh(async p=>{
-  const bytes=Array.from(fs.readFileSync(path.join(__dirname,'fixtures/viewer-pdf/mixed.pdf')));assert(await p.evaluate(bytes=>CruiseViewer.view.openBytes(new Uint8Array(bytes),{name:'mixed.pdf'}),bytes));await menu(p,'[data-pdf-action=settings]');const d=p.getByRole('dialog',{name:'PDFの送り設定'});await d.locator('[data-auto-scroll]').uncheck();const y=await p.locator('.sv-pdf-viewport').evaluate(e=>e.scrollTop);await d.locator('[data-pdf-setting-play]').click();await p.waitForTimeout(350);assert((await state(p)).position>0);assert.equal(await p.locator('.sv-pdf-viewport').evaluate(e=>e.scrollTop),y);await d.locator('[data-pdf-setting-play]').click();await d.getByRole('button',{name:'閉じる',exact:true}).click();await require('./helpers/viewer-regression-choices.cjs').saveFromToolbar(p,'pdf');await p.waitForFunction(()=>!CruiseViewer.view.hasUnsaved());await p.reload();await p.waitForFunction(()=>window.CruiseViewer?.view.read()?.kind==='pdf');await menu(p,'[data-pdf-action=settings]');assert(!(await p.locator('[data-auto-scroll]').isChecked()));await p.getByRole('dialog',{name:'PDFの送り設定'}).getByRole('button',{name:'閉じる',exact:true}).click();
+  const bytes=Array.from(fs.readFileSync(path.join(__dirname,'fixtures/viewer-pdf/mixed.pdf')));assert(await p.evaluate(bytes=>CruiseViewer.view.openBytes(new Uint8Array(bytes),{name:'mixed.pdf'}),bytes));await menu(p,'[data-pdf-action=settings]');const d=p.getByRole('dialog',{name:'PDFの自動スクロール設定'});await d.locator('[data-auto-scroll]').uncheck();const y=await p.locator('.sv-pdf-viewport').evaluate(e=>e.scrollTop);await d.locator('[data-pdf-setting-play]').click();await p.waitForTimeout(350);assert((await state(p)).position>0);assert.equal(await p.locator('.sv-pdf-viewport').evaluate(e=>e.scrollTop),y);await d.locator('[data-pdf-setting-play]').click();await d.getByRole('button',{name:'閉じる',exact:true}).click();await require('./helpers/viewer-regression-choices.cjs').saveFromToolbar(p,'pdf');await p.locator('[data-export-choice=export-save]').click();await p.waitForFunction(()=>!CruiseViewer.view.hasUnsaved());await p.reload();await p.waitForFunction(()=>window.CruiseViewer?.view.read()?.kind==='pdf');await menu(p,'[data-pdf-action=settings]');assert(!(await p.locator('[data-auto-scroll]').isChecked()));await p.getByRole('dialog',{name:'PDFの自動スクロール設定'}).getByRole('button',{name:'閉じる',exact:true}).click();
  }));
  }finally{await browser.close();}
 });

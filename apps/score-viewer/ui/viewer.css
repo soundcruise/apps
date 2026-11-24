@@ -198,3 +198,13 @@
  .sv-library-manager header [data-library-action=import-pdf]{grid-row:2;grid-column:1/-1;justify-self:start;}
 }
 @media(max-width:390px){.sv-library.sv-confirmation{padding:18px;}.sv-leave .sv-confirmation-primary{flex-basis:100%;}}
+
+.sv-scroll-content>label,.sv-scroll-settings .sv-scroll-origin{align-items:center}
+.sv-scroll-settings .sv-scroll-origin{display:flex;justify-content:space-between;gap:8px;margin-bottom:12px}
+.sv-scroll-content select,.sv-scroll-settings .sv-scroll-origin select{max-width:100%;min-width:0}
+.sv-scroll-content input[type=number]{width:6em}
+.sv-scroll-content .sv-scroll-modes{margin-top:18px}
+/* The PDF panel also has preview and apply actions. Give the title its own line. */
+.sv-scroll-settings header:has([data-pdf-setting-play]){flex-wrap:wrap}
+.sv-scroll-settings header:has([data-pdf-setting-play]) h2{flex-basis:100%}
+.sv-scroll-settings [data-pdf-action=dialog-close]{margin-right:auto}

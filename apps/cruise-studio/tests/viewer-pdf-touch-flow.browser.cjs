@@ -52,7 +52,7 @@ for (const engine of ['chrome', 'webkit']) test('portrait PDF through touch menu
         // A completed menu action closes the menu, including zoom.
         await menu();
         await page.locator('[data-pdf-action=settings]').tap();
-        const settings = page.getByRole('dialog', {name: 'PDFの送り設定'});
+        const settings = page.getByRole('dialog', {name: 'PDFの自動スクロール設定'});
         await settings.locator('[data-pdf-speed]').fill('100');
         await settings.locator('[data-pdf-setting-play]').tap();
         await page.waitForFunction(() => CruiseViewer.view.playback().phase === 'playing');
