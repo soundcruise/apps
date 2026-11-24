@@ -454,5 +454,53 @@
         }
       ]
     }
+  },
+  {
+    "information": {
+      "version": 1,
+      "url": "https://acousticguitarmagazine.jp/lesson/2026-1124-capital23/",
+      "source": {
+        "label": "原記事と既存候補の公開日による確認用下書き",
+        "url": "https://acousticguitarmagazine.jp/lesson/2026-1124-capital23/"
+      },
+      "fields": {
+        "brand": "ドクターキャピタル",
+        "product": "add・susコード",
+        "productType": "guitar_article",
+        "action": "introduction",
+        "publishedAt": "2026-11-24",
+        "label": "ドクターキャピタルがアコギで使うadd・susコードを解説"
+      },
+      "notes": [
+        {
+          "label": "掲載前の注意",
+          "value": "音楽理論講座の第23回です。"
+        }
+      ]
+    }
+  },
+  {
+    "information": {
+      "version": 1,
+      "url": "https://acousticguitarmagazine.jp/gears/2026-1124-parlor-maton-embw6-chippoke/",
+      "source": {
+        "label": "原記事と既存候補の公開日による確認用下書き",
+        "url": "https://acousticguitarmagazine.jp/gears/2026-1124-parlor-maton-embw6-chippoke/"
+      },
+      "fields": {
+        "brand": "Maton",
+        "product": "EMBW6",
+        "productType": "guitar_article",
+        "action": "introduction",
+        "publishedAt": "2026-11-24",
+        "label": "大橋ちっぽけがMatonのEMBW6を試奏"
+      },
+      "notes": [
+        {
+          "label": "掲載前の注意",
+          "value": "製品発表ではなく、既存モデルの試奏記事です。"
+        }
+      ]
+    }
   }
 ]
