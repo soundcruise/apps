@@ -1,6 +1,6 @@
 {
   "name": "sound-cruise-news",
-  "version": "0.77.5",
+  "version": "0.78.0",
   "private": true,
   "type": "module",
   "scripts": {
