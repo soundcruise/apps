@@ -8,8 +8,8 @@ import {validOfficialIdentity,sourceIdentityContext,resolveOfficialIdentity} fro
 import {validHeadlineEvidence,enrichHeadlineFacts,releaseDateFields} from './headline-evidence.js';
 import {explicitProductAction,validatedProductEvent,productActionSuffix} from './product-event.js';
 import {subjectProductTypes,isProductSubjectMention,ACOUSTIC_STRINGS_PATTERN,POWER_DISTRIBUTION_PATTERN} from './product-type-evidence.js';
-export const SHIMAMURA_PRODUCT_PARSER='shimamura-product-fields-15';
-export const SHIMAMURA_PRODUCT_PARSERS=Object.freeze(['shimamura-product-fields-5','shimamura-product-fields-6','shimamura-product-fields-7','shimamura-product-fields-8','shimamura-product-fields-9','shimamura-product-fields-10','shimamura-product-fields-11','shimamura-product-fields-12','shimamura-product-fields-13','shimamura-product-fields-14',SHIMAMURA_PRODUCT_PARSER]);
+export const SHIMAMURA_PRODUCT_PARSER='shimamura-product-fields-16';
+export const SHIMAMURA_PRODUCT_PARSERS=Object.freeze(['shimamura-product-fields-5','shimamura-product-fields-6','shimamura-product-fields-7','shimamura-product-fields-8','shimamura-product-fields-9','shimamura-product-fields-10','shimamura-product-fields-11','shimamura-product-fields-12','shimamura-product-fields-13','shimamura-product-fields-14','shimamura-product-fields-15',SHIMAMURA_PRODUCT_PARSER]);
 // Preserve known valid historical proof versions; unknown/bad versions are never accepted.
 export const shimamuraProofParserSupported=(version,minVersion=7)=>SHIMAMURA_PRODUCT_PARSERS.includes(version)&&Number(version.split('-').at(-1))>=minVersion;
 const cls=(n,c)=>(n?.attribs?.class||'').split(/\s+/).includes(c);
@@ -82,4 +82,42 @@ export function parseShimamuraProductEvidence(html,source,row,{officialIdentity=
   if(!action&&!facts.releaseEvent&&/登場しました|登場いたしました/.test(launch)&&models.every(m=>norm(launch).includes(norm(m))))facts.appearanceEvidence={basis:'verified_primary_article',product:facts.product};
   if(!validatedShimamuraProductFacts(facts))throw factFailure('facts_extraction_incomplete',{stage:'facts_schema',missingFields:['validated_product_facts']});return {productFacts:facts,eventType:facts.releaseEvent?.action==='release'||productType==='software_instrument'&&/発売しました/.test(launch)||/発売/.test(title)&&/発売/.test(launch)?'release':'new_product',publishedAt:row.published_at};
  }finally{doc=null;}
+}
+
+// Bounded input assistance for multi-model announcements that the stricter
+// publication parsers could not represent. This never returns formal evidence.
+export function shimamuraMultiModelReview(html,source,row){
+ if(!shimamuraProductSurface(row,source))return null;
+ const doc=parseDocument(html);
+ if(find(doc,n=>n.name==='meta'&&/^(robots|SoundCruiseNewsBot)$/i.test(n.attribs.name||'')).some(n=>optOut(n.attribs.content||'')))return null;
+ const canon=find(doc,n=>n.name==='link'&&n.attribs.rel==='canonical'),roots=find(doc,n=>cls(n,'p-content')),heads=find(doc,n=>n.name==='h1'&&cls(n.parent,'mb-80')),dates=find(doc,n=>n.name==='time'&&plain(n.parent).startsWith('公開：'));
+ const stamp=Date.parse(row.published_at);
+ if(!Number.isFinite(stamp))return null;
+ const day=new Date(stamp+9*3600000).toISOString().slice(0,10);
+ if(canon.length!==1||canon[0].attribs.href!==row.source_url||roots.length!==1||heads.length!==1||dates.length!==1||dates[0].attribs.datetime!==day)return null;
+ const title=plain(heads[0]),root=roots[0];
+ const paragraphs=root.children.filter(n=>n.name==='p'&&cls(n,'wp-block-paragraph')&&!hidden(n)).slice(0,2).map(plain);
+ const intro=paragraphs.join(' ');
+ if(denied.test(title)||denied.test(intro)||!/登場(?:しました|します)|発表しました|発売しました/.test(intro))return null;
+ const productType=/エレクトリック[・ ]?ギター|ストラトキャスター/.test(title+' '+intro)?'electric_guitar_bass':null;
+ if(!productType)return null;
+ const quoted=[...intro.matchAll(/「([^」]+)」/g)].map(m=>m[1]).filter(s=>nameOK(s)&&/[0-9]/.test(s));
+ const models=[...new Set(quoted)];
+ if(models.length<2||models.length>4)return null;
+ // A heading containing the full model corroborates its maker. An explicit
+ // maker in the title and introduction can also anchor coded model names.
+ const directHeadings=root.children.filter(n=>n.name==='h2'&&!hidden(n)).map(plain);
+ const makerForModel=model=>directHeadings.map(h=>h.endsWith(' '+model)?h.slice(0,-model.length-1):null).find(brandOK);
+ const maker=makerForModel(models[0]);
+ const titleMaker=/^([A-Za-z][A-Za-z0-9 .&'-]{1,60}?)(?:から|より)/.exec(title)?.[1];
+ const tableRows=find(root,n=>n.name==='tr'&&/JANコード/.test(plain(n))).map(plain);
+ const codes=models.map(m=>m.match(/^[A-Z]{1,4}[0-9][A-Z0-9]*(?:-[A-Z0-9]+)?(?= |$)/)?.[0]);
+ const tableBound=titleMaker&&intro.includes(titleMaker+'（')&&codes.every(code=>code&&tableRows.filter(r=>{
+  const listed=r.match(/^[A-Z]{1,4}[0-9][A-Z0-9]*(?:-[A-Z0-9]+)?(?= |$)/)?.[0];
+  return listed&&(code===listed||code.startsWith(listed)&&/^\d+$/.test(listed.split('-').at(-1))&&/^[A-Z]+$/.test(code.slice(listed.length)));
+ }).length===1)&&new Set(codes).size===codes.length;
+ const headingBound=maker&&title.includes(maker)&&models.every(m=>makerForModel(m)===maker);
+ if(!headingBound&&!tableBound)return null;
+ const product=(headingBound?models:codes).join('／');
+ return product.length<=100?{brand:headingBound?maker:titleMaker,product,productType,action:'introduction'}:null;
 }

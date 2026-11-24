@@ -30,6 +30,18 @@ export async function candidateAssistedDraft(store,row,now){
  }
  if(assistedTypes[facts.productType])offer('productType',facts.productType);
  if(facts.kind==='assisted_notice'){offer('action',facts.action);offer('qualifier',facts.qualifier);offer('label',row.label);}
+ if(row.id&&row.source_id==='shimamura'&&['brand','product','productType','action'].some(key=>!fields[key])){
+  const work=await store.db.prepare('SELECT evidence_json FROM news_discovery_work WHERE source_id=? AND normalized_url=? AND candidate_id=?').bind(row.source_id,row.source_url,row.id).first();
+  let proof;try{proof=JSON.parse(work?.evidence_json||'null')?.proof;}catch{}
+  const review=proof?.reviewDraft;
+  if(review&&proof.sourceId===row.source_id&&proof.sourceUrl===row.source_url&&proof.publishedAt===row.published_at&&proof.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(proof.responseHash||'')&&['brand','product','productType','action'].every(key=>!fields[key]||fields[key]===review[key])){
+   for(const key of ['brand','product','productType','action']){
+    if(fields[key]||!review[key])continue;
+    offer(key,review[key]);
+    fieldSources[key]={kind:'provided_information',label:'許可済み原記事から抽出した確認用情報',reference:row.source_url,confirmed:false};
+   }
+  }
+ }
  const label=assistedLabel({kind:'assisted_notice',...fields,category:assistedTypes[fields.productType]?.[1]},{draft:true});
  if(label&&!fields.label){fields.label=label;fieldSources.label={kind:'generated_from_draft',confirmed:false};}
  const draft={...base,headline:fields.label||(fields.product?fields.product+'（確認用下書き）':'原記事で対象と出来事を確認してください'),fields,fieldSources,formalFacts:false,humanConfirmed:false,registrationAllowed:true,usageBasis:source.basis,warnings:['既存候補の補完です。入力値は本人の最終確認まで正式証拠にしません。'],missing:['brand','product','productType','action','publishedAt'].filter(k=>!fields[k])};

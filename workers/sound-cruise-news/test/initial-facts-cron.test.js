@@ -40,3 +40,22 @@ test('daily detail 403 stops source siblings and is visible in health and prepar
 test('Retry-After extends the autonomous backoff; a later calendar reset cannot override the publisher',async()=>{const c=cases[1],x=await setup([c]);await pending(x.s,c);await x.run('17 * * * *',at,{fetcher:async u=>new Response(u.endsWith('robots.txt')?robot:null,{status:u.endsWith('robots.txt')?200:429,headers:{'retry-after':'172800','content-type':'text/plain'}})});assert((await x.s.state('ikebe')).backoffUntil>=at+2*86400000);assert.equal((await x.s.sourceHealth()).find(s=>s.source_id==='ikebe').reason_code,'rate_limited');});
 test('retained facts receipts repair provenance after the transport cache is purged, without HTTP',async()=>{const c=cases[1],x=await setup([c]);await x.run('0 21 * * *');const original=await x.s.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(c.id).first();await x.s.db.prepare('DELETE FROM news_facts_sources').run();await x.s.db.prepare('UPDATE candidate_items SET facts_provenance=NULL,review_revision=review_revision+1 WHERE id=?').bind(c.id).run();const n=x.calls.length;await x.run('17 * * * *',at+86400000);assert.equal(x.calls.length,n);const row=await x.s.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(c.id).first();assert.equal(row.product_facts,original.product_facts);assert((await publicationValidation(x.s,row,at+86400000,x.registry,pepper)).valid);});
 test('a different parser cache key cannot re-fetch a URL already checked in this JST day',async()=>{const c=cases[1],x=await setup([c]);await pending(x.s,c);await x.s.db.prepare("INSERT INTO news_facts_sources(source_id,lease_token,checked_at,outcome,items_json) VALUES(?,'older-parser',?,'facts_parser_failure','[]')").bind('ikebe:older-parser:'+c.id,at-1000).run();await x.run('17 * * * *');assert.equal(x.calls.length,0);assert.equal((await x.s.db.prepare('SELECT last_recheck_result FROM news_pending_lifecycle').first()).last_recheck_result,'facts_daily_budget_deferred');});
+
+test('daily collection prepares a bounded multi-model draft without a second article request',async()=>{
+ const c={...cases.find(c=>c.sourceId==='shimamura'),sourceUrl:'https://www.shimamura.co.jp/update/guitar-bass/2026/10/999991/',facts:{brand:'Arbor',product:'限定ストラトキャスター'}};
+ const x=await setup([c]);
+ const body=`<link rel="canonical" href="${c.sourceUrl}"><div class="mb-80"><h1>Arborの限定ストラトキャスター</h1></div><p>公開：<time datetime="2026-10-23">2026-10-23</time></p><div class="p-content"><p class="wp-block-paragraph">新モデル「Series 50 Guitar」と「Series 60 Guitar」が登場しました。</p><h2>Arbor Series 50 Guitar</h2><h2>Arbor Series 60 Guitar</h2></div>`;
+ await x.run('0 21 * * *',at,{fetcher:async(u,o)=>{
+  if(u===c.sourceUrl){x.calls.push(u);return new Response(body,{headers:{'content-type':'text/html'}});}
+  return x.fetcher(u,o);
+ }});
+ const row=await x.s.db.prepare('SELECT * FROM candidate_items WHERE source_url=?').bind(c.sourceUrl).first();
+ assert(row);
+ const {reviewDetail}=await import('../src/operator-review.js');
+ const detail=await reviewDetail(x.s,row.id,at,x.registry,pepper);
+ assert.equal(detail.reviewPresentation.group,'approvable');
+ assert.equal(detail.reviewPresentation.formalReady,false);
+ assert.equal(row.product_facts,null);
+ assert.equal(x.calls.filter(u=>u===c.sourceUrl).length,1);
+ assert.equal((await x.s.db.prepare('SELECT COUNT(*) n FROM news_decision_ledger').first()).n,0);
+});

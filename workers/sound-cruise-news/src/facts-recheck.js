@@ -11,7 +11,7 @@ import {recoverOfficialIdentity,validOfficialIdentity} from './official-identity
 import {parseShimamuraReviewEvidence} from './shimamura-review-evidence.js';
 import {parseSourcePolicyEvidence} from './source-policy-evidence.js';
 import {parseIkebeInformationalEvidence,productArticleIdentityRefinement} from './product-article-evidence.js';
-import {parseShimamuraProductEvidence,validatedShimamuraProductFacts,SHIMAMURA_PRODUCT_PARSERS} from './shimamura-product-evidence.js';
+import {shimamuraMultiModelReview,parseShimamuraProductEvidence,validatedShimamuraProductFacts,SHIMAMURA_PRODUCT_PARSERS} from './shimamura-product-evidence.js';
 import {parseNamedWorkshopEvidence} from './named-workshop-evidence.js';
 import {parseGuitarExhibition} from './guitar-exhibition-evidence.js';
 import {acquireAgmArticle,inspectAgmArticle,agmProof,agmProvenance} from './agm-acquisition.js';
@@ -226,8 +226,24 @@ export async function verifiedSurface(store,source,registry,row,now,pepper,{fetc
   }catch(error){
    if(!['facts_scope_uncertain','facts_identity_changed','facts_identity_unconfirmed','facts_extraction_incomplete','facts_event_missing','facts_parser_failure','facts_date_changed','facts_release_date_conflict'].includes(error.message)||!['ikebe','shimamura'].includes(source.id))throw error;
    proof.parserFailures=[{parser:surface.parser,reason:error.message,...(error.factDiagnostics?{diagnostics:safeFactDiagnostics(error.factDiagnostics)}:{})}];
-   let parsed;try{parsed=parseProductFamilyEvidence(response.text,source,row);proof.extractionMethod='explicit_product_family_fields';proof.parserVersion=PRODUCT_FAMILY_PARSER;}catch(familyError){proof.parserFailures.push({parser:PRODUCT_FAMILY_PARSER,reason:/^facts_[a-z_]+$/.test(familyError.message)?familyError.message:'facts_parser_failure',...(familyError.factDiagnostics?{diagnostics:safeFactDiagnostics(familyError.factDiagnostics)}:{})});parsed=parsePrimaryAnnouncement(response.text,source,row);proof.extractionMethod='explicit_primary_announcement_fields';proof.parserVersion=PRIMARY_ANNOUNCEMENT_PARSER;}
-   items=[{id:row.id,sourceUrl:row.source_url,...parsed}];
+   try{
+    let parsed;
+    try{
+     parsed=parseProductFamilyEvidence(response.text,source,row);
+     proof.extractionMethod='explicit_product_family_fields';proof.parserVersion=PRODUCT_FAMILY_PARSER;
+    }catch(familyError){
+     proof.parserFailures.push({parser:PRODUCT_FAMILY_PARSER,reason:/^facts_[a-z_]+$/.test(familyError.message)?familyError.message:'facts_parser_failure',...(familyError.factDiagnostics?{diagnostics:safeFactDiagnostics(familyError.factDiagnostics)}:{})});
+     parsed=parsePrimaryAnnouncement(response.text,source,row);
+     proof.extractionMethod='explicit_primary_announcement_fields';proof.parserVersion=PRIMARY_ANNOUNCEMENT_PARSER;
+    }
+    items=[{id:row.id,sourceUrl:row.source_url,...parsed}];
+   }catch(fallbackError){
+    if(source.id==='shimamura'&&(factFailureKind(fallbackError.message)==='extraction'||fallbackError.message==='facts_source_invalid')){
+     const draft=shimamuraMultiModelReview(response.text,source,row);
+     if(draft)proof.reviewDraft=draft;
+    }
+    throw fallbackError;
+   }
   }finally{response.text='';response=null;}
   if(approvedRecovery)proof={...proof,recoveryApproval:approvedRecovery};
   if(initialPrimarySource(source)&&items.length===1)proof=await sealPrimaryProof(proof,items[0],row);
@@ -272,7 +288,7 @@ export async function recheckFacts(store,input,now,registry,pepper,actor,options
  if((!before.valid||options.refreshComplete===true&&actor.type==='system_repair')&&!before.errors.includes('duplicate')){
   const surface=await verifiedSurface(store,source,registry,row,now,pepper,{...options,approvedRecovery});
   outcome=surface.outcome;publisherAttempted=initialPrimarySource(source)?surface.publisherAttempted===true:undefined;nextRetryAt=surface.nextRetryAt||null;awaitingParserUpdate=surface.awaitingParserUpdate===true;
-  if(surface.proof_json&&initialPrimarySource(source)){try{const failure=JSON.parse(surface.proof_json);if(failure?.failureReason){provenance=[{...failure,factField:'_extraction_failure'}];diagnostics=failure.diagnostics||null;}}catch{}}
+  if(surface.proof_json&&initialPrimarySource(source)){try{const failure=JSON.parse(surface.proof_json);if(failure?.failureReason){delete failure.reviewDraft;provenance=[{...failure,factField:'_extraction_failure'}];diagnostics=failure.diagnostics||null;}}catch{}}
   if(outcome==='verified_surface'){
    const item=JSON.parse(surface.items_json||'[]').find(i=>i.id===row.id&&i.sourceUrl===row.source_url),proof=JSON.parse(surface.proof_json||'null');
    if(!item)outcome='facts_not_on_current_surface';
