@@ -1,4 +1,4 @@
-export {GUITAR_LEAD_SECONDS,outputContextTime,trimSampleAttack,metronomeSample,METRONOME_SOUNDS,normalizeMetronomeSound} from './score-audio.mjs';
+export {COUNT_IN_OUTPUT_SETTLE_SECONDS,GUITAR_LEAD_SECONDS,outputContextTime,trimSampleAttack,metronomeSample,METRONOME_SOUNDS,normalizeMetronomeSound} from './score-audio.mjs';
 // Presentation helpers shared by the score editor and the read-only viewer.
 // They own no music, transport, storage or account state.
 // Browsers deliver trackpad pinch as either a modified wheel or a native gesture.

@@ -2868,18 +2868,25 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
                 if(ctx.state!=='running'){await stop();return {ok:false,error:'音を開始できませんでした。もう一度押してください。'};}
                 if(!isCurrent()||!audio.isLeaseCurrent(handle,next)){await stop();return {ok:false};}
                 if(!audio.grant(handle,next)){await stop();return {ok:false};}
-                var samples=new Map();events.concat(countEvents).forEach(function(e){var key=e.part+':'+e.midi;if(!samples.has(key))samples.set(key,options.loadSample(ctx,e.midi,e.part));});
+                var samples=new Map();
+                events.concat(countEvents).forEach(function(e){
+                    var key=e.part+':'+e.midi;
+                    if(samples.has(key))return;
+                    var sample=e.part==='count'&&options.metronomeSample
+                        ? options.metronomeSample(ctx,e.midi) : options.loadSample(ctx,e.midi,e.part);
+                    samples.set(key,sample);
+                });
                 var keys=Array.from(samples.keys()),decoded=await Promise.all(Array.from(samples.values()));keys.forEach(function(key,i){samples.set(key,decoded[i]);});
                 if(token!==epoch)return {ok:false};
                 if(!isCurrent()||!audio.isLeaseCurrent(handle,next)){await stop();return {ok:false};}
-                var now=ctx.currentTime-startOffset,current={nodes:new Set(),remaining:events.length,startedAt:now,duration:holdSeconds||0,cursor:0,cycle:0};voice=current;
+                var now=ctx.currentTime-startOffset+(preRoll?scoreUI.COUNT_IN_OUTPUT_SETTLE_SECONDS:0),current={nodes:new Set(),remaining:events.length,startedAt:now,duration:holdSeconds||0,cursor:0,cycle:0};voice=current;
                 function finish(){if(voice!==current||token!==epoch)return;cancelTimers();silence();idle(ctx,token);}
                 var silentClicks=[];
                 function refreshClicks(){var pending=silentClicks;silentClicks=[];for(var skipped of pending)if(now+lead+skipped.offset+skipped.event.start>=ctx.currentTime+.005){if(options.isMetronomeEnabled?.()===false)silentClicks.push(skipped);else schedule(skipped.event,skipped.offset);}}current.refreshClicks=refreshClicks;
                 function schedule(e,offset){
                     if(e.part==='click'&&options.isMetronomeEnabled?.()===false){silentClicks.push({event:e,offset:offset||0});return;}
                     if(current.nodes.size>=2048)throw Error('同時に鳴らす音が多すぎるため停止しました');
-                    var sample=['click','count'].includes(e.part)&&options.metronomeSample?options.metronomeSample(ctx,e.midi):samples.get(e.part+':'+e.midi),osc=ctx.createBufferSource(),gain=ctx.createGain(),rate=Math.pow(2,(e.midi-sample.midi)/12),start=now+(e.part==='count'?0:lead)+(offset||0)+e.start;
+                    var sample=e.part==='click'&&options.metronomeSample?options.metronomeSample(ctx,e.midi):samples.get(e.part+':'+e.midi),osc=ctx.createBufferSource(),gain=ctx.createGain(),rate=Math.pow(2,(e.midi-sample.midi)/12),start=now+(e.part==='count'?0:lead)+(offset||0)+e.start;
                     if (e.part === 'guitar' || e.part === 'mute') start = Math.max(now + startOffset, start - scoreUI.GUITAR_LEAD_SECONDS);
                     // Use the same output frame for a pick position reached through different bar offsets.
                     if(e.part==='guitar' && ctx.sampleRate)start=Math.round(start*ctx.sampleRate)/ctx.sampleRate;

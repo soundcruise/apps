@@ -11,12 +11,12 @@ const source=readFileSync(new URL('../js/modules/sheet-cruise/sheet-cruise.js',i
 const create=vm.runInNewContext('('+source.slice(source.indexOf('function createPianoAudition('),source.indexOf('    // End short pitch audition.')).trim()+')',{scoreUI});
 const project=bpm=>({songInfo:{bpm,timeSignature:{beats:4,beatUnit:4}}});
 const score=[{midi:60,part:'guitar',start:.03,duration:.1,gain:.1}];
-function fixture(load){
+function fixture(load,metronomeSample){
  const audio=createCoordinator(),timers=new Map(),starts=[],states=[];let serial=0,created=0;
  const ctx={state:'suspended',currentTime:0,destination:{},resume:async()=>{ctx.state='running';},close:async()=>{ctx.state='closed';},
   createGain:()=>({gain:{setValueAtTime(){},linearRampToValueAtTime(){},exponentialRampToValueAtTime(){}},connect(){},disconnect(){}}),
   createBufferSource:()=>({playbackRate:{setValueAtTime(){}},connect(){},disconnect(){},start(t){starts.push({t,part:this.buffer.part});},stop(){},onended:null})};
- const runtime=create({coordinator:audio,createContext:()=>{created++;return ctx;},loadSample:load||((c,midi,part)=>Promise.resolve({midi,buffer:{duration:4,part}})),setTimer:(fn,ms)=>{const id=++serial;timers.set(id,{fn,at:ctx.currentTime+ms/1000});return id;},clearTimer:id=>timers.delete(id),onState:(phase,mode)=>states.push({phase,mode})});
+ const runtime=create({coordinator:audio,metronomeSample,createContext:()=>{created++;return ctx;},loadSample:load||((c,midi,part)=>Promise.resolve({midi,buffer:{duration:4,part}})),setTimer:(fn,ms)=>{const id=++serial;timers.set(id,{fn,at:ctx.currentTime+ms/1000});return id;},clearTimer:id=>timers.delete(id),onState:(phase,mode)=>states.push({phase,mode})});
  async function advance(to){while(true){const next=[...timers].sort((a,b)=>a[1].at-b[1].at)[0];if(!next||next[1].at>to)break;ctx.currentTime=next[1].at;timers.delete(next[0]);next[1].fn();await Promise.resolve();}ctx.currentTime=to;}
  return {runtime,audio,ctx,starts,timers,states,advance,get created(){return created;}};
 }
@@ -42,8 +42,22 @@ test('3/4 uses three count-in and metronome beats',()=>{
 test('count-in and score share one context with a 10 ms guitar lead',async()=>{
  const f=fixture(),count=buildCountIn(project(400));assert((await f.runtime.playEvents(score,()=>true,.63,true,undefined,count)).ok);
  assert.equal(f.created,1);assert.equal(f.starts.filter(e=>e.part==='count').length,4);
- await f.advance(.65);assert(Math.abs(f.starts.find(e=>e.part==='guitar').t-.62)<1e-9);
- assert(f.runtime.snapshot().playing);await f.advance(1.3);assert.equal(f.runtime.snapshot().playing,false);await f.runtime.stop();assert.equal(f.audio.snapshot()[0].contextCount,0);
+ const first=f.starts.find(e=>e.part==='count').t;assert(first>=.12);
+ await f.advance(first+.61);assert(Math.abs(f.starts.find(e=>e.part==='guitar').t-(first+.60-.010))<1e-9);
+ assert(f.runtime.snapshot().playing);await f.advance(first+1.3);assert.equal(f.runtime.snapshot().playing,false);await f.runtime.stop();assert.equal(f.audio.snapshot()[0].contextCount,0);
+});
+test('a cold count tone is prepared before the editor takes its start timestamp',async()=>{
+ const f=fixture(undefined,(ctx,midi)=>{
+  ctx.currentTime += .07;
+  return {midi,buffer:{duration:.06,part:'count'}};
+ });
+ const count=buildCountIn(project(120));
+ assert((await f.runtime.playEvents(score,()=>true,.63,true,undefined,count)).ok);
+ const clicks=f.starts.filter(e=>e.part==='count');
+ assert.equal(clicks.length,4);
+ assert(clicks[0].t-f.ctx.currentTime>=.12);
+ clicks.forEach((click,i)=>assert(Math.abs(click.t-clicks[0].t-i*.5)<1e-9));
+ await f.runtime.stop();
 });
 test('guitar and muted strokes advance together in song and audition while click and melody stay on the beat',async()=>{
  for(const streaming of [true,false]){
@@ -61,7 +75,7 @@ test('guitar and muted strokes advance together in song and audition while click
 test('range repeats use only score duration; count clicks never repeat',async()=>{
  const f=fixture(),count=buildCountIn(project(400));assert((await f.runtime.playEvents(score,()=>true,.63,true,.6,count)).ok);await f.advance(2.5);
  assert.equal(f.created,1);assert.equal(f.starts.filter(e=>e.part==='count').length,4);
- const times=f.starts.filter(e=>e.part==='guitar').map(e=>e.t);assert(times.length>=4);times.forEach((t,i)=>assert(Math.abs(t-(.62+i*.6))<1e-8));
+ const times=f.starts.filter(e=>e.part==='guitar').map(e=>e.t);assert(times.length>=4);times.forEach((t,i)=>assert(Math.abs(t-(f.starts[0].t+.6-.010+i*.6))<1e-8));
  await f.runtime.stop();const n=f.starts.length;await f.advance(6);assert.equal(f.starts.length,n);assert.equal(f.timers.size,0);assert.equal(f.audio.snapshot()[0].contextCount,0);
 });
 test('stop during asynchronous sample loading cannot revive the count or score',async()=>{

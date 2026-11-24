@@ -37,6 +37,7 @@ test('the counted downbeat is queued in advance and strums lead the click by 10 
     f.player.configure({countIn:true,metronome:true});
     await f.player.play();
     const countStart=f.sources[0].startTime,beat=.6,downbeat=countStart+4*beat;
+    assert(countStart >= .12, 'allow output startup before the first click');
     // No callback on the downbeat itself; both sources must already be armed.
     f.advance(downbeat-.07);
     assert.equal(f.player.snapshot().phase,'counting');
@@ -54,6 +55,19 @@ test('the counted downbeat is queued in advance and strums lead the click by 10 
     const mute=f.sources.find(source=>source.buffer.part==='mute');
     near(mute.startTime,downbeat+6*beat-.010);
     near(mute.stoppedAt,mute.startTime+.085);
+    await f.player.dispose();
+});
+test('slow count tone synthesis cannot consume the viewer’s first click',async()=>{
+    const f=fake();let release;
+    f.delay(new Promise(resolve=>{release=resolve;}));
+    f.player.configure({countIn:true});
+    const playing=f.player.play();
+    const createBuffer=f.ctx.createBuffer;
+    f.ctx.createBuffer=(...args)=>{f.ctx.currentTime+=.07;return createBuffer(...args);};
+    release();assert(await playing);
+    assert.equal(f.player.snapshot().stats.parts.count,4);
+    assert(f.sources[0].startTime-f.ctx.currentTime>=.12);
+    near(f.sources[0].stoppedAt-f.sources[0].startTime,.055);
     await f.player.dispose();
 });
 function addTiedMelody(score){
@@ -203,7 +217,7 @@ test('range loops reserve the next attack ahead of the boundary and survive temp
 });
 test('horizontal presentation persists without changing immutable score bytes',async()=>{const f=viewerFixture(),file=await f.contract.codec.encode(f.score,f.metadata),reader=f.contract.createReader();await reader.open(file.text);const before=reader.read().document.source.scoreDigest;reader.setPresentation({...reader.read().presentation,flow:'horizontal'});assert.equal(reader.read().presentation.flow,'horizontal');assert.equal(reader.read().document.source.scoreDigest,before);reader.dispose();});
 
-test('count-in/metronome default on while explicit saved opt-outs stay off',()=>{assert.equal(normalizePlayback().countIn,true);assert.equal(normalizePlayback().metronome,true);assert.equal(normalizePlayback({countIn:false,metronome:false}).countIn,false);assert.equal(normalizePlayback({countIn:false,metronome:false}).metronome,false);});
+test('count-in defaults off, metronome defaults on, and saved choices are honored',()=>{assert.equal(normalizePlayback().countIn,false);assert.equal(normalizePlayback({countIn:true}).countIn,true);assert.equal(normalizePlayback().metronome,true);assert.equal(normalizePlayback({countIn:false,metronome:false}).countIn,false);assert.equal(normalizePlayback({countIn:false,metronome:false}).metronome,false);});
 test('many loop iterations keep audio nodes bounded and count in only once',async()=>{const f=fake();f.player.configure({countIn:true,metronome:true});f.player.setTempo(400);f.player.setRange(1920,3840,true);f.player.seek(1920);await f.player.play();assert.equal(f.player.snapshot().phase,'counting');f.advance(120);const s=f.player.snapshot();assert.equal(s.phase,'playing');assert(s.iteration>190);assert.equal(s.stats.parts.count,4);assert(s.stats.peakNodes<100);assert(s.nodes<100);assert(f.timers.size<=1);await f.player.dispose();assert.equal(f.timers.size,0);});
 
 test('changing only Repeat preserves ringing tails and the current tick',async()=>{const f=fake();f.player.setRange(1920,3840,false);f.player.seek(1920);await f.player.play();f.advance(.25);const at=f.player.snapshot().tick,created=f.sources.length;assert(f.player.setRange(1920,3840,true));near(f.player.snapshot().tick,at);await f.player.play();near(f.player.snapshot().tick,at);assert(f.sources.slice(created).some(s=>s.offset>0));f.advance(.2);assert.equal(f.player.snapshot().phase,'playing');await f.player.dispose();});
