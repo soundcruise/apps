@@ -227,8 +227,7 @@
 
 @container viewer (max-width: 570px) {
     .sv-format-host .sv-viewer > .sv-toolbar { flex-wrap:nowrap; position:relative; gap:2px; padding:3px; }
-    /* The icon-button base style also sets display. Keep fullscreen in the menu. */
-    .sv-toolbar > [data-viewer-focus] { display:none!important; }
+    .sv-toolbar > [data-viewer-focus] { order:3; min-width:44px; width:44px; height:44px; margin:0; }
     .sv-toolbar > .sv-main-menu > summary > span,
     .sv-toolbar > .sv-main-menu > summary::after { display:none; }
     .sv-toolbar > .sv-main-menu > summary > svg { display:block; }
@@ -247,10 +246,27 @@
     }
     .sv-toolbar:has([data-pdf-file]) > .sv-zoom { margin-left:auto; }
 }
-@container viewer (max-width: 335px) {
+@container viewer (max-width: 405px) {
     .sv-toolbar > :is([data-viewer-action=library],[data-pdf-action=library]) {
         display:grid; place-items:center; box-sizing:border-box; width:44px; height:44px;
     }
     .sv-toolbar > :is([data-viewer-action=library],[data-pdf-action=library]) > svg { display:block; }
     .sv-toolbar > :is([data-viewer-action=library],[data-pdf-action=library]) > span { display:none; }
 }
+
+/* Below this width the three zoom targets and layout control need the full row. */
+@container viewer (max-width: 350px) {
+    .sv-toolbar > [data-viewer-focus] { display:none!important; }
+}
+.sv-sound-picker { display:none; position:relative; }
+@container viewer (max-width:1050px) { .sv-sound-picker { display:inline-grid; } }
+@media (max-width:1050px) { .sv-sound-picker { display:inline-grid; } }
+.sv-sound-picker > .sv-sound-select { grid-area:1/1; opacity:0; z-index:1; }
+.sv-sound-picker > span {
+    grid-area:1/1; display:flex; gap:4px; align-items:center; justify-content:center;
+    border:1px solid var(--studio-border-default,#62717e); border-radius:8px;
+    background:var(--studio-control,#25313c); font:13px system-ui; pointer-events:none;
+}
+.sv-sound-picker > span::after { content:'⌄'; }
+.sv-sound-picker:focus-within > span { outline:2px solid var(--studio-focus,#e6d29b); }
+.sv-sound-picker:has(:disabled) > span { opacity:.55; }

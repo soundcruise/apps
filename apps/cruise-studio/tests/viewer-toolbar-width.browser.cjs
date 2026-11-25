@@ -63,6 +63,26 @@ for (const name of ['chrome','webkit']) test('direct score controls in the Studi
         assert(await desktop.evaluate(async text=>(await CruiseStudio.scoreViewer.ready()).openBytes(text),file.text));
         const dock=await checkToolbar(desktop,false);
         assert(dock.width<1050);
+        const handle=desktop.locator('#tool-window-resize');
+        const grip=await handle.boundingBox();
+        const x=grip.x+grip.width/2,y=grip.y+grip.height/2;
+        await desktop.mouse.move(x,y);
+        await desktop.mouse.down();
+        await desktop.mouse.move(x-100,y,{steps:8});
+        await desktop.mouse.up();
+        const expanded=await checkToolbar(desktop,false);
+        assert(expanded.width>dock.width+90);
+        const focus=desktop.locator('#studio-tool-window [data-viewer-focus]:visible');
+        await focus.click();
+        await desktop.locator('.score-fullscreen .sv-focus-exit:visible').click();
+        assert.equal(await focus.getAttribute('aria-pressed'),'false');
+        const picker=desktop.locator('#studio-tool-window .sv-sound-picker');
+        const sound=picker.getByRole('combobox',{name:'再生する音'});
+        assert.deepEqual(await sound.locator('option').allTextContents(),['ミュート','メトロノーム','全部鳴らす']);
+        for(const [value,caption] of [['mute','消音'],['click','拍音'],['all','全部']]){
+            await sound.selectOption(value);
+            assert.equal(await picker.locator('span').innerText(),caption);
+        }
         const phone=await browser.newPage({...devices[name==='chrome'?'Pixel 7':'iPhone 13']});
         await phone.goto(origin+'/apps/score-viewer/local/');
         await phone.waitForFunction(()=>!!window.CruiseViewer);

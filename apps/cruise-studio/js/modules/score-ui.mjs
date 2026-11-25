@@ -245,12 +245,25 @@ export function mountScoreFullscreen(host,parent,{className='sv-focused',attribu
 export function mountSoundModes({parent,button,read,change}){
     const group=parent.ownerDocument.createElement('div');group.className='sv-sound-modes';group.setAttribute('role','group');group.setAttribute('aria-label','再生する音');parent.append(group);
     const buttons=new Map(),label=parent.ownerDocument.createElement('span');label.textContent='音';group.append(label);
-    for(const [mode,text]of [['mute','ミュート'],['click','メトロノーム'],['all','全部鳴らす']]){
+    const doc=parent.ownerDocument;
+    const picker=doc.createElement('div'),compact=doc.createElement('select'),caption=doc.createElement('span');
+    picker.className='sv-sound-picker';
+    compact.className='sv-sound-select';
+    compact.setAttribute('aria-label','再生する音');
+    caption.setAttribute('aria-hidden','true');
+    picker.append(compact,caption);
+    group.after(picker);
+    for(const [mode,text,short] of [['mute','ミュート','消音'],['click','メトロノーム','拍音'],['all','全部鳴らす','全部']]){
+        const option=doc.createElement('option');
+        option.value=mode;
+        option.textContent=text;
+        option.dataset.short=short;
+        compact.append(option);
         const b=button(text,'sound-'+mode,group);buttons.set(mode,b);b.title=mode==='mute'?'音を鳴らさず画面だけ送る':text;
         b.onclick=()=>{const s=read();if(!s)return;change({metronome:mode!=='mute',mix:{chords:mode==='all'?100:0,melody:mode==='all'?100:0,metronome:mode==='mute'?0:100}});};
     }
-    const compact=parent.ownerDocument.createElement('select');compact.className='sv-sound-select';compact.setAttribute('aria-label','再生する音');for(const [value,text]of [['mute','消音'],['click','拍音'],['all','全部']]){const o=parent.ownerDocument.createElement('option');o.value=value;o.textContent=text;compact.append(o);}group.after(compact);compact.onchange=()=>buttons.get(compact.value).click();
-    return ()=>{const s=read(),m=s?.settings.mix;const mode=!m?null:m.chords>0||m.melody>0?'all':s.settings.metronome&&m.metronome>0?'click':'mute';compact.disabled=!s;if(mode)compact.value=mode;for(const [key,b]of buttons){b.disabled=!s;b.setAttribute('aria-pressed',String(key===mode));}};
+    compact.onchange=()=>buttons.get(compact.value).click();
+    return ()=>{const s=read(),m=s?.settings.mix;const mode=!m?null:m.chords>0||m.melody>0?'all':s.settings.metronome&&m.metronome>0?'click':'mute';compact.disabled=!s;if(mode)compact.value=mode;caption.textContent=compact.selectedOptions[0].dataset.short;for(const [key,b]of buttons){b.disabled=!s;b.setAttribute('aria-pressed',String(key===mode));}};
 }
 
 
