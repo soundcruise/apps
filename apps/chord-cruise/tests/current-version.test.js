@@ -6,7 +6,7 @@ var path = require('path');
 
 var root = path.join(__dirname, '..');
 var standardDirectory = path.join(root, 'standard');
-var expectedVersion = '1.24.0';
+var expectedVersion = '1.25.0';
 // FM7 does not change the activation/info modules or their existing cache identities.
 var auxiliaryVersion = '1.23.0';
 var appSource = fs.readFileSync(path.join(root, 'js/app.js'), 'utf8');
@@ -38,4 +38,4 @@ infoPages.forEach(function (page) {
     assert(page.source.includes('./info-routing.js?v=' + auxiliaryVersion), page.fileName + ' routing cache version matches');
 });
 
-console.log('current-version: APP_VERSION and Standard/Pro asset versions are 1.24.0 OK');
+console.log('current-version: APP_VERSION and Standard/Pro asset versions are 1.25.0 OK');

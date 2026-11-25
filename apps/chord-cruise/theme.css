@@ -4646,3 +4646,8 @@ body.cc-settings-open {
     --cc-overlay: rgba(15, 15, 16, 0.55);
     --cc-shadow-alpha: 0.3;
 }
+
+.cc-builder-result { display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:8px 0; }
+.cc-builder-result strong { flex:1; overflow-wrap:anywhere; color:var(--cc-champagne); font-size:1.35rem; }
+.cc-builder-result .cc-builder-name { margin:0; }
+.cc-builder-result [hidden] { display:none !important; }
