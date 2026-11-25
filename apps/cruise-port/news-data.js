@@ -1,5 +1,5 @@
-import { membersVideoHref } from './news-members-video.js?v=1.38.4';
-import { articlePath, CRUISE_STUDIO_NEWS_ITEM, STUDIO_BROWSER_CORRECTION } from './news-articles.js?v=1.38.4';
+import { membersVideoHref } from './news-members-video.js?v=1.38.5';
+import { articlePath, CRUISE_STUDIO_NEWS_ITEM, STUDIO_BROWSER_CORRECTION } from './news-articles.js?v=1.38.5';
 import {labelInformationScore,eventVisible,validEventDeadline} from './news-quality.js?v=1.35.0';
 export {labelInformationScore} from './news-quality.js?v=1.35.0';
 // Manual ingestion boundary. No collector, persistence or network access.
@@ -80,7 +80,7 @@ export function isStudioBrowserCorrection(item) {
         item.linkType === 'internal' && item.category === 'cruise_apps' && item.sourceKind === 'official';
 }
 export function isFeaturedNews(item) {
-    return isStudioBrowserCorrection(item) || isFeaturedStudioNotice(item);
+    return isFeaturedStudioNotice(item);
 }
 export function prepareNews(input, { now = Date.now(), mode = NEWS_MODE } = {}) {
     if (mode === 'off') return [];
@@ -97,11 +97,10 @@ export function prepareNews(input, { now = Date.now(), mode = NEWS_MODE } = {}) 
             (item.sourceKind === previous.sourceKind && item.publishedAt > previous.publishedAt)))) topics.set(item.topicKey, item);
     }
     return [...topics.values()].sort((a,b) => {
-        // The correction remains pinned, followed by the Studio notice.
+        // The Studio notice stays pinned above the dated news groups.
         // Ordinary entries retain their JST day and within-day priority.
         const officialFirst = item => item.displayOrder === 0 && membersVideoHref(item) ? 1 : 0;
-        return Number(isStudioBrowserCorrection(b)) - Number(isStudioBrowserCorrection(a)) ||
-            Number(isFeaturedStudioNotice(b)) - Number(isFeaturedStudioNotice(a)) ||
+        return Number(isFeaturedStudioNotice(b)) - Number(isFeaturedStudioNotice(a)) ||
             newsDay(b.publishedAt).localeCompare(newsDay(a.publishedAt)) ||
             (a.displayOrder ?? 100000) - (b.displayOrder ?? 100000) ||
             officialFirst(b) - officialFirst(a) ||

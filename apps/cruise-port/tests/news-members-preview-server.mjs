@@ -5,9 +5,9 @@ import http from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { resolve, extname } from 'node:path';
 const root=resolve(import.meta.dirname,'../../..');
-const boot=`import {renderNews} from '/apps/cruise-port/news-ui.js?v=1.38.4';
-import {CRUISE_APPS_NEWS_ITEMS, STUDIO_BROWSER_CORRECTION} from '/apps/cruise-port/news-articles.js?v=1.38.4';
-import {renderNewsArticle} from '/apps/cruise-port/news-article-ui.js?v=1.38.4';
+const boot=`import {renderNews} from '/apps/cruise-port/news-ui.js?v=1.38.5';
+import {CRUISE_APPS_NEWS_ITEMS, STUDIO_BROWSER_CORRECTION} from '/apps/cruise-port/news-articles.js?v=1.38.5';
+import {renderNewsArticle} from '/apps/cruise-port/news-article-ui.js?v=1.38.5';
 const at = Date.parse('2026-11-20T12:00:00+09:00');
 const previewItems = [...CRUISE_APPS_NEWS_ITEMS, STUDIO_BROWSER_CORRECTION, {
  id:'isolated-normal-news',label:'通常NEWSのリンク確認用',sourceName:'隔離fixture',

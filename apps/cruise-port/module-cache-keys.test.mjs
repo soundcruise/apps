@@ -8,19 +8,19 @@ const read=path=>readFileSync(new URL('../../'+path,import.meta.url));
 const sha=b=>createHash('sha256').update(b).digest('hex');
 const newsVersions = new Map([['news-quality.js','1.35.0'],['style.css','1.37.0'],...['news-data.js','news-provider.js','news-ui.js','news-articles.js','news-article-ui.js','news-members-video.js','news-members-video.css'].map(name=>[name,'1.36.0'])]);
 for(const name of ['news-data.js','news-provider.js','news-ui.js'])newsVersions.set(name,'1.37.0');
-for(const name of ['news-articles.js','news-article-ui.js','news-members-video.js','news-data.js','news-provider.js','news-ui.js','news-article.css'])newsVersions.set(name,'1.38.4');
+for(const name of ['news-articles.js','news-article-ui.js','news-members-video.js','news-data.js','news-provider.js','news-ui.js','news-article.css'])newsVersions.set(name,'1.38.5');
 const news=new Set(newsVersions.keys());
 const boot=new Set(['home-display.js','app-version.js','practice-menu-app.js','tuner-app.js','pro-app-boot.js','index.html','pro_9a3943176561/index.html']);
 // Reverse only this release's permitted boot/cache changes, not arbitrary source.
 function beforeNewsChange(path,bytes){
  const name=path.replace('apps/cruise-port/','');if(!boot.has(name))return bytes;
  let source=bytes.toString().replace('sync-center-ui.js?v=1.37.1','sync-center-ui.js?v=1.33.0');
- for(const module of ['app-version.js','practice-menu-app.js','pro-app-boot.js'])source=source.replaceAll(module+'?v=1.38.4',module+'?v=1.37.1');
- for(const module of ['news-ui.js','news-provider.js'])source=source.replaceAll(module+'?v=1.38.4',module+'?v=1.37.0');
- for(const module of ['news-article-ui.js','news-articles.js'])source=source.replaceAll(module+'?v=1.38.4',module+'?v=1.36.0');
+ for(const module of ['app-version.js','practice-menu-app.js','pro-app-boot.js'])source=source.replaceAll(module+'?v=1.38.5',module+'?v=1.37.1');
+ for(const module of ['news-ui.js','news-provider.js'])source=source.replaceAll(module+'?v=1.38.5',module+'?v=1.37.0');
+ for(const module of ['news-article-ui.js','news-articles.js'])source=source.replaceAll(module+'?v=1.38.5',module+'?v=1.36.0');
  source=source.replaceAll('loadPortNewsPresentation','loadNewsPresentation');
- source=source.replace('news-article.css?v=1.38.4','news-article.css?v=1.16.0');
- if(name==='app-version.js')source=source.replace("CRUISE_PORT_APP_VERSION = '1.38.4'","CRUISE_PORT_APP_VERSION = '1.37.1'");
+ source=source.replace('news-article.css?v=1.38.5','news-article.css?v=1.16.0');
+ if(name==='app-version.js')source=source.replace("CRUISE_PORT_APP_VERSION = '1.38.5'","CRUISE_PORT_APP_VERSION = '1.37.1'");
  for(const module of ['settings-store.js','home-display.js'])source=source.replaceAll(module+'?v=1.37.1',module+'?v=1.30.5');
  for(const module of ['app-version.js','practice-menu-app.js','tuner-app.js','pro-app-boot.js'])source=source.replaceAll(module+'?v=1.37.1',module+'?v=1.37.0');
  if(name==='app-version.js')source=source.replace("CRUISE_PORT_APP_VERSION = '1.37.1'","CRUISE_PORT_APP_VERSION = '1.37.0'");
@@ -37,7 +37,7 @@ function beforeNewsChange(path,bytes){
  return Buffer.from(source);
 }
 test('the new release follows actual production 1.33.0 rather than main 1.28.0',()=>{
- assert.equal(CRUISE_PORT_APP_VERSION,'1.38.4');
+ assert.equal(CRUISE_PORT_APP_VERSION,'1.38.5');
  assert.equal(baseline.sourceCommit,'f26ec11f93561a6dc2164f3f2ecfd2f1b5f81e39');
  assert.equal(Object.keys(baseline.sha256).length,215);
 });
@@ -52,22 +52,22 @@ test('all 204 public assets outside the NEWS, Sync presentation and settings cha
 });
 test('Standard and Pro load the changed app/boot while keeping the production CSS, auth and Sync keys',()=>{
  for(const path of ['apps/cruise-port/index.html','apps/cruise-port/pro_9a3943176561/index.html']){
-  const html=read(path).toString();assert.match(html,/(?:practice-menu-app|pro-app-boot)\.js\?v=1\.38\.4/);
+  const html=read(path).toString();assert.match(html,/(?:practice-menu-app|pro-app-boot)\.js\?v=1\.38\.5/);
   assert.match(html,/style\.css\?v=1\.37\.0/);assert.match(html,/multi-app-sync-runtime\.js\?v=38/);
   assert.match(html,/port-sync-controller\.js\?v=1\.30\.5/);
  }
 });
 test('the complete changed NEWS import chain uses one new cache key',()=>{
  const app=read('apps/cruise-port/practice-menu-app.js').toString();
- for(const name of ['news-ui.js','news-provider.js'])assert.ok(app.includes(name+'?v=1.38.4'));
- for(const name of ['news-ui.js','news-provider.js'])assert.ok(read('apps/cruise-port/'+name).toString().includes('news-data.js?v=1.38.4'));
+ for(const name of ['news-ui.js','news-provider.js'])assert.ok(app.includes(name+'?v=1.38.5'));
+ for(const name of ['news-ui.js','news-provider.js'])assert.ok(read('apps/cruise-port/'+name).toString().includes('news-data.js?v=1.38.5'));
  assert.ok(read('apps/cruise-port/news-data.js').toString().includes('news-quality.js?v=1.35.0'));
- for(const name of ['practice-menu-app.js','tuner-app.js'])assert.ok(read('apps/cruise-port/'+name).toString().includes('app-version.js?v=1.38.4'));
+ for(const name of ['practice-menu-app.js','tuner-app.js'])assert.ok(read('apps/cruise-port/'+name).toString().includes('app-version.js?v=1.38.5'));
  for(const name of ['settings-store.js','home-display.js','sync-center-ui.js'])assert.ok(app.includes(name+'?v=1.37.1'));
  assert.ok(read('apps/cruise-port/home-display.js').toString().includes('settings-store.js?v=1.37.1'));
  assert.ok(read('apps/cruise-port/sync-center-ui.js').toString().includes('sync-center-device-detail.js?v=1.37.1'));
  assert.ok(app.includes('tuner-app.js?v=1.37.1'));
- assert.ok(read('apps/cruise-port/pro-app-boot.js').toString().includes('practice-menu-app.js?v=1.38.4'));
+ assert.ok(read('apps/cruise-port/pro-app-boot.js').toString().includes('practice-menu-app.js?v=1.38.5'));
 });
 test('no old URL remains for changed NEWS implementation modules',()=>{
  for(const file of readdirSync(new URL('.',import.meta.url)).filter(f=>f.endsWith('.js'))){

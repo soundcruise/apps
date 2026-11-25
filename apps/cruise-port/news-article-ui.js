@@ -1,5 +1,5 @@
-import { CRUISE_STUDIO_NEWS_ITEM, NEWS_ARTICLES, parseNewsArticleRoute } from './news-articles.js?v=1.38.4';
-import { confirmMembersVideo } from './news-members-video.js?v=1.38.4';
+import { CRUISE_STUDIO_NEWS_ITEM, NEWS_ARTICLES, parseNewsArticleRoute } from './news-articles.js?v=1.38.5';
+import { confirmMembersVideo } from './news-members-video.js?v=1.38.5';
 
 function appendBrowserCorrection(doc, content, article, node) {
     const intro = node('p', article.intro);

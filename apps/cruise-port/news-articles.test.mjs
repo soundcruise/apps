@@ -78,7 +78,7 @@ test('theme update represents all five apps and identifies screenshots as Port e
 });
 test('direct NEWS URLs survive startup without appending a history entry; both editions include article view',()=>{
  for(const hash of ['#news',articlePath('theme-colors'),'#news/cruise-apps/unknown'])normalizeInitialHome({locationObject:{hash},historyObject:{replaceState(){assert.fail('no redirect/history loop');}}});
- for(const path of ['index.html','pro_9a3943176561/index.html']){const html=readFileSync(new URL(path,import.meta.url),'utf8');assert.match(html,/id="news-article-view"/);assert.match(html,/href="#news">← ニュース一覧/);assert.match(html,/news-article\.css\?v=1\.38\.4/);}
+ for(const path of ['index.html','pro_9a3943176561/index.html']){const html=readFileSync(new URL(path,import.meta.url),'utf8');assert.match(html,/id="news-article-view"/);assert.match(html,/href="#news">← ニュース一覧/);assert.match(html,/news-article\.css\?v=1\.38\.5/);}
 });
 
 test('explicit return replaces detail rather than appending a route (no back loop)',()=>{
@@ -104,25 +104,26 @@ test('Port adds the pinned correction to its official list and honors the news s
  assert.deepEqual((await loadPortNewsPresentation({fetcher})).items,[own,video,correction]);
  await assert.rejects(loadPortNewsPresentation({fetcher:async()=>Response.json({disabled:true})}),{name:'NewsDisabledError'});
 });
-test('the correction and Studio announcement remain featured with standard metadata',()=>{
+test('only the Studio announcement stays featured; the correction retains metadata in its date group',()=>{
  const d=doc(),afterPreviousDeadline=Date.parse('2026-11-24T10:00:00+09:00');
  const next=Date.parse('2027-03-01T09:00:00+09:00');
- assert.deepEqual(groupNews(prepareNews([video,correction],{now:afterPreviousDeadline}),'',afterPreviousDeadline)[0][1].map(item=>item.id),[correction.id,video.id]);
- assert.deepEqual(prepareNews([video,correction],{now:next}).map(item=>item.id),[correction.id,video.id]);
+ assert.deepEqual(groupNews(prepareNews([video,correction],{now:afterPreviousDeadline}),'',afterPreviousDeadline).map(([day,items])=>[day,items.map(item=>item.id)]),[['2026-11-18',[video.id]],['2026-11-20',[correction.id]]]);
+ assert.deepEqual(prepareNews([video,correction],{now:next}).map(item=>item.id),[video.id]);
  renderNews({documentObject:d,items:[video,correction],now:afterPreviousDeadline,clock:()=>afterPreviousDeadline});
- const featured=d.ids['news-content'].all().find(n=>n.tagName==='section');
+ const [featured,dated]=d.ids['news-content'].all().filter(n=>n.tagName==='section');
  assert.equal(featured.children[0].textContent,'注目のお知らせ');
- const card=featured.children[1];
+ assert.equal(dated.children[0].textContent,'2026/11/20');
+ const card=dated.children[1];
  assert.equal(card.href,articlePath(correction.articleId));
  assert.equal(card.all().find(n=>n.className==='news-source').textContent,'アコギ弾き語りラボ/クルーニー');
  assert.equal(normalizeNewsItem({...correction,sourceName:'Sound Cruise'}),null);
  assert.equal(card.all().find(n=>n.className==='news-label').textContent,correction.label);
- for (const [entry,item] of [[card,correction],[featured.children[2],video]]) {
+ for (const [entry,item] of [[card,correction],[featured.children[1],video]]) {
   assert.equal(entry.all().find(n=>n.className==='news-category').textContent,'クルーズapps');
   assert.equal(entry.all().find(n=>n.className==='news-source').textContent,item.sourceName);
   assert.equal(entry.all().find(n=>n.tagName==='time').dateTime,item.publishedAt);
  }
- assert.equal(featured.children[2].all().find(n=>n.tagName==='time').dateTime,video.publishedAt);
+ assert.equal(featured.children[1].all().find(n=>n.tagName==='time').dateTime,video.publishedAt);
 });
 test('the correction article renders its recommendation, ordered instructions, PDF and video action',()=>{
  const d=doc();assert.ok(renderNewsArticle({documentObject:d,hash:articlePath(correction.articleId)}));

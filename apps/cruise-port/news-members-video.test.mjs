@@ -83,7 +83,7 @@ test('rerender closes the modal; normal external cards retain their original anc
 test('both editions load the scoped stylesheet and updated boot modules without changing main CSS',()=>{
  for(const path of ['index.html','pro_9a3943176561/index.html']){
   const html=readFileSync(new URL(path,import.meta.url),'utf8');assert.match(html,/news-members-video\.css\?v=1\.36\.0/);
-  assert.match(html,/(practice-menu-app|pro-app-boot)\.js\?v=1\.38\.4/);
+  assert.match(html,/(practice-menu-app|pro-app-boot)\.js\?v=1\.38\.5/);
  }
  const source=readFileSync(new URL('news-members-video.js',import.meta.url),'utf8');assert.doesNotMatch(source,/innerHTML|insertAdjacentHTML|\bfetch\(|localStorage|indexedDB/);
 });
