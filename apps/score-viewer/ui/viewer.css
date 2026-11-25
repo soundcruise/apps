@@ -208,3 +208,11 @@
 .sv-scroll-settings header:has([data-pdf-setting-play]){flex-wrap:wrap}
 .sv-scroll-settings header:has([data-pdf-setting-play]) h2{flex-basis:100%}
 .sv-scroll-settings [data-pdf-action=dialog-close]{margin-right:auto}
+
+:is(.sv-settings,.sc-playback-dialog) button.score-scroll-link{
+    display:block;margin:12px 0 0 auto;padding:4px 2px;min-height:28px;width:auto;
+    background:transparent;border:0;box-shadow:none;color:var(--studio-text-muted,#bab8b1);
+    font-size:13px;font-weight:500;text-decoration:underline;text-underline-offset:3px;cursor:pointer
+}
+:is(.sv-settings,.sc-playback-dialog) button.score-scroll-link:hover{color:var(--studio-text-primary,#fff)}
+#screen-sheet-cruise .sv-scroll-settings{z-index:10020}

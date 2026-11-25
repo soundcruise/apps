@@ -1,6 +1,6 @@
-import {bindOutsideDismiss} from '../../cruise-studio/js/modules/score-ui.mjs';
+import {bindOutsideDismiss,bindPlaybackButton} from '../../cruise-studio/js/modules/score-ui.mjs';
 
-export function createScrollSettings({host,read,change,toggle,playback,setTempo,horizontal,following,resume}){
+export function createScrollSettings({host,read,change,toggle,playback,setTempo,horizontal,following,resume,playingLabel='Ⅱ 一時停止'}){
     const doc=host.ownerDocument;
     let dialog,refresh=()=>{};
     function open(){
@@ -61,7 +61,7 @@ export function createScrollSettings({host,read,change,toggle,playback,setTempo,
         slider.oninput=()=>change({mode:'custom',secondsPerBar:baseSeconds(playback())/Math.pow(2,(Number(slider.value)-50)/25)});
         const footer=node('footer');
         const resumeButton=button('スクロール再開',footer,resume);resumeButton.dataset.scrollResume='';
-        const play=button('▶ 再生',footer,toggle);
+        const play=button('▶ 再生',footer,toggle);bindPlaybackButton(play,toggle);
         function update(){
             const s=read(),p=playback();
             auto.checked=s.enabled;content.hidden=!s.enabled;
@@ -78,7 +78,8 @@ export function createScrollSettings({host,read,change,toggle,playback,setTempo,
             slider.value=s.mode==='bpm'?50:Math.max(0,Math.min(100,50+Math.log2(baseSeconds(p)/s.secondsPerBar)*25));
             output.textContent=Math.round(s.secondsPerBar*100)/100+'秒／小節';
             resumeButton.hidden=!s.enabled||following();
-            play.textContent=['playing','counting','loading'].includes(p.phase)?'Ⅱ 一時停止':'▶ 再生';
+            const playLabel=['playing','counting','loading'].includes(p.phase)?playingLabel:'▶ 再生';
+            if(play.textContent!==playLabel)play.textContent=playLabel;
         }
         refresh=update;
         d.addEventListener('keydown',e=>e.stopPropagation());

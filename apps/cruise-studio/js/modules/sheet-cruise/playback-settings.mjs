@@ -3,7 +3,7 @@ import {METRONOME_SOUNDS} from '../score-audio.mjs';
 import {bindOutsideDismiss,bindPlaybackButton,syncPlaybackButton} from '../score-ui.mjs';
 // Browser preferences only. Never write playback controls into a Project.
 export function normalizeMix(value){return Object.fromEntries(['chords','melody','metronome'].map(key=>[key,typeof value?.[key]==='number'&&Number.isFinite(value[key])&&value[key]>=0&&value[key]<=100?value[key]:100]));}
-export function createPlaybackSettings({document:doc,host,read,change,toggle,closed,resetTempo,partChecks,syncPartChecks}){
+export function createPlaybackSettings({document:doc,host,read,change,toggle,closed,resetTempo,openScroll,partChecks,syncPartChecks}){
  let dialog=null,refresh=()=>{};
  function close(restore=true){if(dialog){dialog.restore=restore;dialog.close();}}
  function open(trigger){
@@ -25,6 +25,10 @@ export function createPlaybackSettings({document:doc,host,read,change,toggle,clo
   const toneLabel=node('label','メトロノームの音'),tone=node('select',undefined,toneLabel);toneLabel.className='score-metronome-tone';tone.setAttribute('aria-label','メトロノームの音');tone.dataset.metronomeSound='';for(const [id,text]of Object.entries(METRONOME_SOUNDS)){const o=node('option',text,tone);o.value=id;}tone.value=values.metronomeSound||'click';tone.onchange=()=>{if(active())change('scoreMetronomeSound',tone.value,notice);};
   const sync=node('section');sync.className='sc-audio-sync';node('h3','音と棒の同期',sync);const label=node('label','音と棒の位置調整',sync),delay=node('input',undefined,label),output=node('output','',label);delay.type='range';delay.min=-1000;delay.max=1000;delay.step=10;delay.value=values.visualDelayMs||0;delay.dataset.playbackDelay='';delay.setAttribute('aria-label','棒の表示タイミング');const updateDelay=()=>{output.textContent=(Number(delay.value)>0?'+':'')+delay.value+' ms';};updateDelay();delay.oninput=()=>{if(active()){change('scoreVisualDelayMs',Number(delay.value),notice);updateDelay();}};const automatic=node('button','自動に戻す',sync);automatic.type='button';automatic.onclick=()=>{if(active()){delay.value=0;change('scoreVisualDelayMs',0,notice);updateDelay();}};
   if(resetTempo){const original=node('button','原曲のテンポに戻す');original.type='button';original.className='score-tempo-reset';original.onclick=()=>{if(active())resetTempo();};}
+  if(openScroll){
+   const link=node('button','自動スクロール設定');link.type='button';link.className='score-scroll-link';
+   link.onclick=()=>{d.addEventListener('close',openScroll,{once:true});close(false);};
+  }
   const notice=node('p','');notice.setAttribute('role','status');notice.dataset.playbackSettingsNotice='';
   bindOutsideDismiss(d,{close:()=>close()});d.addEventListener('keydown',e=>{e.stopPropagation();if(e.isComposing||e.keyCode===229)return;if(e.key==='Escape'){e.preventDefault();close();}if((e.metaKey||e.ctrlKey)&&['s','z'].includes(e.key.toLowerCase()))e.preventDefault();});
   d.addEventListener('close',()=>{if(dialog===d)dialog=null;refresh=()=>{};d.remove();closed();if(d.restore)(previous?.isConnected?previous:trigger)?.focus({preventScroll:true});});host.appendChild(d);d.showModal();done.focus({preventScroll:true});

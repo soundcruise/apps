@@ -4,7 +4,7 @@ import {METRONOME_SOUNDS} from '../../cruise-studio/js/modules/score-audio.mjs';
 import {bindOutsideDismiss,bindPlaybackButton,syncPlaybackButton} from '../../cruise-studio/js/modules/score-ui.mjs';
 import {MAX_PRESET_BYTES} from '../core/preset.mjs';
 const copy=value=>JSON.parse(JSON.stringify(value));
-export function createViewerSettings({host,read,change,playback,configure,toggle,begin,finish,presetCodec,library,notify,renderPreview,forms,createPreviewAudio}){
+export function createViewerSettings({host,read,change,playback,configure,toggle,begin,finish,presetCodec,library,notify,renderPreview,forms,createPreviewAudio,openScroll}){
     const doc=host.ownerDocument;let current=null;
     function close(){current?.close();}
     function shell(title,trigger){
@@ -67,6 +67,10 @@ export function createViewerSettings({host,read,change,playback,configure,toggle
         explanation.textContent+=' 音と棒に一定のずれが残る場合は「音と棒の同期」で表示だけを早めたり遅らせたりします。音のテンポは変わりません。自動に戻すと追加調整を解除します。';
         const reset=button('原曲のテンポに戻す');reset.dataset.viewerOriginalTempo='';reset.className='score-tempo-reset';reset.onclick=()=>{if(active())configure({bpm:read().document.score.songInfo.bpm});};
         reset.disabled=['loading','counting'].includes(playback().phase);
+        if(openScroll){
+            const link=button('自動スクロール設定');link.className='score-scroll-link';
+            link.onclick=()=>{d.addEventListener('close',openScroll,{once:true});d.close();};
+        }
         d.showModal();refreshAudio();done.focus();
     }
     function refreshAudio(){const b=current?.querySelector('[data-viewer-audio-play]');if(b)syncPlaybackButton(b,playback().phase);}
