@@ -1,6 +1,32 @@
-export {COUNT_IN_OUTPUT_SETTLE_SECONDS,GUITAR_LEAD_SECONDS,outputContextTime,trimSampleAttack,metronomeSample,METRONOME_SOUNDS,normalizeMetronomeSound} from './score-audio.mjs';
+export {startCountInSupport,COUNT_IN_OUTPUT_SETTLE_SECONDS,GUITAR_LEAD_SECONDS,outputContextTime,trimSampleAttack,metronomeSample,METRONOME_SOUNDS,normalizeMetronomeSound} from './score-audio.mjs';
 // Presentation helpers shared by the score editor and the read-only viewer.
 // They own no music, transport, storage or account state.
+// This preference belongs to the output device's browser, across songs and views.
+const countSupportKey = 'cruise.score.countInOutputSupport';
+let temporaryCountSupport;
+export function countInSupportEnabled() {
+    if (temporaryCountSupport !== undefined) return temporaryCountSupport;
+    try { return localStorage.getItem(countSupportKey) === '1'; }
+    catch { return false; }
+}
+export function addCountInSupportOption(parent) {
+    const doc = parent.ownerDocument, row = doc.createElement('label'), input = doc.createElement('input');
+    row.className = 'sc-playback-option';
+    input.type = 'checkbox';
+    input.checked = countInSupportEnabled();
+    input.dataset.countInSupport = '';
+    row.title = '次のカウントインから、最初の拍の少し前と拍の間に小さな準備音を流します。';
+    input.onchange = () => {
+        try {
+            localStorage.setItem(countSupportKey, input.checked ? '1' : '0');
+            temporaryCountSupport = undefined;
+        } catch { temporaryCountSupport = input.checked; }
+    };
+    const caption = doc.createElement('span');
+    caption.textContent = 'カウントインの音切れ対策（HDMIなど）';
+    row.append(input, caption);
+    parent.append(row);
+}
 // Browsers deliver trackpad pinch as either a modified wheel or a native gesture.
 export const MIN_SCORE_ZOOM=.25, MAX_SCORE_ZOOM=4;
 export function playbackRowTop(top,bottom,height){

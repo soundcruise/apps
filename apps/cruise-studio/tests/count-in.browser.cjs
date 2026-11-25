@@ -22,6 +22,30 @@ for(const engine of ['chrome','webkit'])test('optional song count-in on one audi
   assert.equal(await checked(p),false);const before=await snap(p);await p.evaluate(()=>{const key='cruiseStudio.appSettings',s=JSON.parse(localStorage.getItem(key)||'{}');s.unknownCountTest={keep:true};localStorage.setItem(key,JSON.stringify(s));});await flag(p,true);assert.deepEqual(await snap(p),before);assert(await p.evaluate(()=>JSON.parse(localStorage.getItem('cruiseStudio.appSettings')).unknownCountTest.keep));
   await p.click('#sc-save');await p.waitForFunction(()=>!CruiseStudio.sheetCruise.getSession().dirty);const saved=await snap(p);const download=p.waitForEvent('download');await p.click('#sc-curve-menu-toggle');await p.click('#sc-export-json');const {scorePresentation,...song}=JSON.parse(fs.readFileSync(await(await download).path(),'utf8'));assert.equal(scorePresentation.version,1);assert.deepEqual(song,saved.project);await p.reload();await p.click('#open-sheet-cruise');assert(await checked(p));assert.deepEqual((await snap(p)).project,saved.project);await settings(p);await p.emulateMedia({media:'print'});assert(await p.locator('[data-playback-settings]').isHidden());await p.emulateMedia({media:'screen'});await done(p);
  }));
+ await t.test('monitor support is opt-in, survives reopening and follows the count bus and stop',()=>fresh(async p=>{
+  const before=await snap(p);
+  await settings(p);
+  const check=p.getByRole('checkbox',{name:'カウントインの音切れ対策（HDMIなど）'});
+  assert.equal(await check.isChecked(),false);
+  await check.check();await done(p);await settings(p);assert(await check.isChecked());await done(p);
+  assert.deepEqual(await snap(p),before);
+  const results=await p.evaluate(async()=>{
+   const {startCountInSupport}=await import('/apps/cruise-studio/js/modules/score-audio.mjs');
+   const results=[];
+   for(const mode of ['on','muted','cancelled']){
+    const rate=48000,ctx=new OfflineAudioContext(1,3*rate,rate),bus=ctx.createGain();
+    bus.gain.value=mode==='muted'?0:1;bus.connect(ctx.destination);
+    const support=startCountInSupport(ctx,bus,2);
+    if(mode==='cancelled')support.cancel();
+    const samples=(await ctx.startRendering()).getChannelData(0);
+    const peak=at=>Math.max(...samples.subarray(at*rate,(at+.02)*rate));
+    results.push([peak(.3),peak(support.firstBeat+.25),peak(support.firstBeat+1.75),peak(2.92)]);
+   }
+   return results;
+  });
+  assert(results[0].slice(0,3).every(peak=>peak>.007&&peak<.009));assert.equal(results[0][3],0);
+  assert(results.slice(1).flat().every(peak=>peak===0));
+ }));
  await t.test('count displays beats without moving highlight or scrolling; selected-bar music starts one bar later and Space stops there',()=>fresh(async p=>{
   await flag(p,true);await select(p,2);const before=await snap(p),scroll=await p.locator('.studio-main').evaluate(e=>e.scrollTop);await p.click('#sc-song-preview');await p.waitForFunction(()=>document.getElementById('sc-song-position').textContent.includes('カウント'));assert.equal(await p.locator('#sc-sheet-scale-box .sc-playing-bar,[data-score-playhead]').count(),0);assert.equal(await p.locator('.studio-main').evaluate(e=>e.scrollTop),scroll);
   await p.waitForFunction(()=>__starts.some(e=>e.part==='guitar'));const times=await p.evaluate(()=>({count:__starts.filter(e=>e.part==='count').map(e=>e.t),music:__starts.find(e=>e.part==='guitar').t,contexts:__contexts.length,first:__plans.at(-1).plan.spans[0].index}));assert.equal(times.first,1);assert.equal(times.count.length,4);assert.equal(times.contexts,1);assert(Math.abs(times.music-times.count[0]-(.6-.010))<1/44100);

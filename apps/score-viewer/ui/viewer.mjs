@@ -97,7 +97,7 @@ export function mountNativeViewer({host, contract, library, renderPaper,createPl
         syncPlaybackButton(play,sound?.phase,{disabled:play.disabled});
         tempo.disabled=!current||['loading','counting'].includes(sound.phase);
         if(sound&&doc.activeElement!==tempo)tempo.value=sound.settings.bpm;
-        summary.textContent=current?(sound.phase==='counting'?'開始まで '+sound.countBeat+' / '+current.ticksPerBar/480:Math.min(Math.floor(sound.tick/current.ticksPerBar)+1,current.reader.read().document.score.bars.length)+' / '+current.reader.read().document.score.bars.length+'小節')+'　／　閲覧専用':'';
+        summary.textContent=current?(sound.phase==='counting'?(sound.countBeat?'開始まで '+sound.countBeat+' / '+current.ticksPerBar/480:'カウント準備中'):Math.min(Math.floor(sound.tick/current.ticksPerBar)+1,current.reader.read().document.score.bars.length)+' / '+current.reader.read().document.score.bars.length+'小節')+'　／　閲覧専用':'';
         follow.hidden=true;here.hidden=true;
         syncExport(!!current&&!exporting);exportJSON.disabled=!current||externalBusy;printButton.disabled=!current;syncSoundModes();scrollButton.disabled=!current;scrollReset.hidden=!current||current.scroll.snapshot().mode!=='custom';scrollButton.textContent=current?.scroll.snapshot().mode==='custom'?'自動スクロール設定（カスタム）':'自動スクロール設定';selectionLabel.textContent=current?(playing?'演奏中：'+(sound.barIndex+1)+'小節':'選択：'+((candidate??sound.barIndex)+1)+'小節'):'';
         repeatButton.disabled=!current||!sound.totalTicks||['loading','counting'].includes(sound.phase);repeatButton.setAttribute('aria-pressed',String(repeat));

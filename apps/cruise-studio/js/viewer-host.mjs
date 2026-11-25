@@ -5,6 +5,7 @@ import {mountViewer} from '../../score-viewer/ui/viewer.mjs';
 import {automaticColumns,createPaperLayout} from './modules/sheet-cruise/paper-layout.mjs';
 import {createViewerPlayer} from '../../score-viewer/core/audio-player.mjs';
 import {createViewerSamples} from './modules/sheet-cruise/viewer-samples.mjs';
+import {countInSupportEnabled} from './modules/score-ui.mjs';
 
 const sourcePaperWidth=794;
 
@@ -59,7 +60,7 @@ export function mountStudioViewer(C,host=document.getElementById('score-viewer-h
     const loadSample=createViewerSamples(C,document);
     function createPlayback(doc,settings,onState){
         let plan;try{plan=contract.tickPlan(doc.score);}catch{const melody=contract.tickPlan(doc.score,{melodyOnly:true});plan={...melody,warnings:['この伴奏形式は再生未対応です。メロディと拍音のみ再生します。',...melody.warnings]};}
-        return createViewerPlayer({plan,originalBpm:doc.score.songInfo.bpm,settings,loadSample,coordinator:C.audio,
+        return createViewerPlayer({plan,countInSupportEnabled,originalBpm:doc.score.songInfo.bpm,settings,loadSample,coordinator:C.audio,
             createClock:options=>contract.createClock(doc.score,options),createContext:()=>new(window.AudioContext||window.webkitAudioContext)(),
             sessionId:'studio.viewer.'+crypto.randomUUID(),onState});
     }

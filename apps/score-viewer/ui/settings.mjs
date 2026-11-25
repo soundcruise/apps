@@ -1,7 +1,7 @@
 import {createPaperLayout} from '../../cruise-studio/js/modules/sheet-cruise/paper-layout.mjs';
 import {addInteractionColors} from '../../cruise-studio/js/modules/sheet-cruise/paper-appearance.mjs';
 import {METRONOME_SOUNDS} from '../../cruise-studio/js/modules/score-audio.mjs';
-import {bindOutsideDismiss,bindPlaybackButton,syncPlaybackButton} from '../../cruise-studio/js/modules/score-ui.mjs';
+import {addCountInSupportOption,bindOutsideDismiss,bindPlaybackButton,syncPlaybackButton} from '../../cruise-studio/js/modules/score-ui.mjs';
 import {MAX_PRESET_BYTES} from '../core/preset.mjs';
 const copy=value=>JSON.parse(JSON.stringify(value));
 export function createViewerSettings({host,read,change,playback,configure,toggle,begin,finish,presetCodec,library,notify,renderPreview,forms,createPreviewAudio,openScroll}){
@@ -62,6 +62,7 @@ export function createViewerSettings({host,read,change,playback,configure,toggle
         const explanation=node('p','コード・メロディ・拍音は別々に音量を変えられます。0%で消音です。表示を隠しても音は消えません。カウントインは明示的な開始前の1小節で、一時停止からの再開では繰り返しません。設定はこのブラウザだけに保存します。');explanation.hidden=true;help.onclick=()=>{explanation.hidden=!explanation.hidden;help.setAttribute('aria-expanded',String(!explanation.hidden));};
         for(const [key,label]of [['chords','コード'],['melody','メロディ'],['metronome','メトロノーム・カウントイン']]){const row=node('label',label),range=node('input',undefined,row),out=node('output',playback().settings.mix[key]+'%',row);range.type='range';range.min=0;range.max=100;range.value=playback().settings.mix[key];range.dataset.viewerVolume=key;range.setAttribute('aria-label',label+'の音量');range.oninput=()=>{if(active()){out.textContent=range.value+'%';configure({mix:{...playback().settings.mix,[key]:Number(range.value)}});}};}
         for(const [key,label]of [['countIn','カウントイン'],['metronome','メトロノーム']]){const row=node('label',label),check=node('input',undefined,row);check.type='checkbox';check.checked=playback().settings[key];check.dataset.viewerPlayback=key;check.onchange=()=>{if(active())configure({[key]:check.checked});};}
+        addCountInSupportOption(d);
         const toneLabel=node('label','メトロノームの音'),tone=node('select',undefined,toneLabel);toneLabel.className='score-metronome-tone';tone.setAttribute('aria-label','メトロノームの音');tone.dataset.metronomeSound='';for(const [id,text]of Object.entries(METRONOME_SOUNDS)){const o=node('option',text,tone);o.value=id;}tone.value=playback().settings.metronomeSound;tone.onchange=()=>{if(active())configure({metronomeSound:tone.value});};
         const sync=node('section');sync.className='sv-audio-sync';node('h3','音と棒の同期',sync);const syncLabel=node('label','音と棒の位置調整',sync),delay=node('input',undefined,syncLabel),delayValue=node('output','',syncLabel);delay.type='range';delay.min=-1000;delay.max=1000;delay.step=10;delay.value=playback().settings.visualDelayMs||0;delay.dataset.viewerDelay='';delay.setAttribute('aria-label','棒の表示タイミング');const refreshDelay=()=>delayValue.textContent=(Number(delay.value)>0?'+':'')+delay.value+' ms';refreshDelay();delay.oninput=()=>{if(active()){configure({visualDelayMs:Number(delay.value)});refreshDelay();}};const auto=button('自動に戻す',sync);auto.onclick=()=>{if(active()){delay.value=0;configure({visualDelayMs:0});refreshDelay();}};
         explanation.textContent+=' 音と棒に一定のずれが残る場合は「音と棒の同期」で表示だけを早めたり遅らせたりします。音のテンポは変わりません。自動に戻すと追加調整を解除します。';

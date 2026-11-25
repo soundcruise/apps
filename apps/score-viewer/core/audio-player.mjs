@@ -1,4 +1,4 @@
-import {COUNT_IN_PULSE_SECONDS,COUNT_IN_OUTPUT_SETTLE_SECONDS,GUITAR_LEAD_SECONDS,CONNECTED_STRUM_RELEASE,stringDampTime,metronomeSample,normalizeMetronomeSound} from '../../cruise-studio/js/modules/score-audio.mjs';
+import {startCountInSupport,COUNT_IN_PULSE_SECONDS,COUNT_IN_OUTPUT_SETTLE_SECONDS,GUITAR_LEAD_SECONDS,CONNECTED_STRUM_RELEASE,stringDampTime,metronomeSample,normalizeMetronomeSound} from '../../cruise-studio/js/modules/score-audio.mjs';
 import {createOutputPosition,outputContextTime} from './output-position.mjs';
 import {insist} from './json.mjs';
 
@@ -32,11 +32,12 @@ export function musicalEnd(event,plan,sample,attackTime){
 // Audio ownership is injected. No DOM, editor, storage, network or independent
 // musical timer here. A short timer only feeds reservations from the beat clock.
 export function createViewerPlayer({plan,createClock,createContext,loadSample,coordinator,
-    settings={},originalBpm=100,performanceTime=()=>globalThis.performance.now(),setTimer=setTimeout,clearTimer=clearTimeout,onState=()=>{},sessionId}){
+    countInSupportEnabled=()=>false,settings={},originalBpm=100,performanceTime=()=>globalThis.performance.now(),setTimer=setTimeout,clearTimer=clearTimeout,onState=()=>{},sessionId}){
     insist(plan.events.length<=524288,'too-many-playback-events');
     let options=normalizePlayback(settings,originalBpm),phase='paused',reason=null,clock=null,context=null,handle=null,lease=null;
     let token=0,timer=null,tick=0,scan=0,countEnd=0,countBeat=0,hasStarted=false,disposed=false,closing=null;
     let range={start:0,end:plan.totalTicks,loop:false},scanIteration=0;
+    let countSupport=null;
     const lookahead=.30;
     const ticksPerBar=plan.ticksPerBar??1920, countBeats=ticksPerBar/480;
     const outputPosition=createOutputPosition();
@@ -65,7 +66,7 @@ export function createViewerPlayer({plan,createClock,createContext,loadSample,co
     function cancelTimer(){if(timer!==null)clearTimer(timer);timer=null;}
     function forget(voice){voice.source.onended=null;try{voice.source.disconnect();voice.gain.disconnect();}catch{}nodes.delete(voice);}
     function cancel(voice){try{voice.source.stop(context.currentTime);}catch{}forget(voice);}
-    function silence(){for(const voice of [...nodes])cancel(voice);}
+    function silence(){countSupport?.cancel();countSupport=null;for(const voice of [...nodes])cancel(voice);}
     function setMix(mix){options={...options,mix:normalizePlayback({mix},options.bpm).mix};if(context)for(const [key,bus]of Object.entries(buses))bus.gain.setTargetAtTime(options.mix[key]/100,context.currentTime,.015);}
     function releaseLease(){if(lease){coordinator.release(handle,lease);lease=null;}}
     function resetScan(position){scan=0;while(scan<ordered.length&&ordered[scan].tick<position-1e-7)scan++;}
@@ -143,7 +144,7 @@ export function createViewerPlayer({plan,createClock,createContext,loadSample,co
         if(context?.state!=='running'||!coordinator.isLeaseCurrent(handle,lease)){pause('interruption');return;}
         try{
             if(phase==='counting'){
-                const step=60/options.bpm;countBeat=Math.max(1,Math.min(countBeats,Math.floor((context.currentTime-(countEnd-countBeats*step))/step)+1));
+                const step=60/options.bpm;countBeat=Math.max(countSupport?0:1,Math.min(countBeats,Math.floor((context.currentTime-(countEnd-countBeats*step))/step)+1));
                 // Arm the musical clock while the last count is still playing. A late
                 // timer must not set the downbeat or postpone its first guitar attack.
                 if(clock.snapshot().status!=='playing' && context.currentTime>=countEnd-.18){
@@ -186,7 +187,10 @@ export function createViewerPlayer({plan,createClock,createContext,loadSample,co
             insist(coordinator.grant(handle,next),'audio-interrupted');buffers=new Map(entries);resetScan(tick);scanIteration=clock.snapshot().iteration;
             if(!hasStarted&&options.countIn){
                 for(const midi of [84,72])buffers.set('count:'+midi,metronomeSample(ctx,midi,options.metronomeSound,'count'));
-                phase='counting';const step=60/options.bpm,start=ctx.currentTime+COUNT_IN_OUTPUT_SETTLE_SECONDS+.03;countEnd=start+step*countBeats;countBeat=1;
+                phase='counting';const step=60/options.bpm;
+                if(countInSupportEnabled())countSupport=startCountInSupport(ctx,buses.metronome,step*countBeats);
+                const start=countSupport?.firstBeat??(ctx.currentTime+COUNT_IN_OUTPUT_SETTLE_SECONDS+.03);
+                countEnd=start+step*countBeats;countBeat=countSupport?0:1;
                 for(let i=0;i<countBeats;i++){const e={part:'count',midi:i===0?84:72,gain:i===0?.16:.12,tick:i*480,naturalSeconds:COUNT_IN_PULSE_SECONDS};
                     schedule(e,{time:start,tick:0,bpm:options.bpm});}
             }else{

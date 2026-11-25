@@ -26,6 +26,30 @@ export function trimSampleAttack(context,buffer){const start=attackFrame(buffer)
 export const COUNT_IN_OUTPUT_SETTLE_SECONDS = .12;
 // At 400 BPM a beat lasts 150 ms. Leave a distinct gap even at that tempo.
 export const COUNT_IN_PULSE_SECONDS = .115;
+// Keep a real, low-level signal on an opted-in output across the silent gaps.
+// Route it through the count bus so muting that bus also mutes the support tone.
+export function startCountInSupport(context, output, countDuration) {
+    const source = context.createOscillator(), level = context.createGain();
+    const start = context.currentTime + .015, firstBeat = start + .8, end = firstBeat + countDuration;
+    source.frequency.value = 330;
+    level.gain.setValueAtTime(0, start);
+    level.gain.linearRampToValueAtTime(.008, start + .05);
+    level.gain.setValueAtTime(.008, end - .025);
+    level.gain.linearRampToValueAtTime(0, end);
+    source.connect(level);
+    level.connect(output);
+    function disconnect() {
+        source.onended = null;
+        source.disconnect();
+        level.disconnect();
+    }
+    source.onended = disconnect;
+    source.start(start);
+    source.stop(end);
+    return {firstBeat, cancel() {
+        if (source.onended) { source.stop(); disconnect(); }
+    }};
+}
 export const GUITAR_LEAD_SECONDS = .010;
 export const CONNECTED_STRUM_RELEASE = .008;
 

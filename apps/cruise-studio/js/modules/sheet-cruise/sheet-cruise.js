@@ -2827,7 +2827,7 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
         setMix(options.mix);
         function notify(phase){try{if(options.onState)options.onState(phase,mode);}catch(_){}}
         function register(){if(!handle)handle=audio.register({sessionId:options.sessionId||'studio.sheet.solfege-audition',ownerFeatureId:'sheetCruise',cleanup:cleanup,notify:function(){void stop();}});}
-        function silence(){if(!voice)return;var old=voice;voice=null;old.nodes.forEach(function(n){n.osc.onended=null;try{n.osc.stop();}catch(_){}try{n.osc.disconnect();n.gain.disconnect();}catch(_){}});}
+        function silence(){if(!voice)return;var old=voice;voice=null;old.countSupport?.cancel();old.nodes.forEach(function(n){n.osc.onended=null;try{n.osc.stop();}catch(_){}try{n.osc.disconnect();n.gain.disconnect();}catch(_){}});}
         function cancelTimers(){if(idleTimer!==null)options.clearTimer(idleTimer);if(endTimer!==null)options.clearTimer(endTimer);if(pumpTimer!==null)options.clearTimer(pumpTimer);idleTimer=endTimer=pumpTimer=null;}
         function closeContext(ctx){
             if(closing.has(ctx))return closing.get(ctx);
@@ -2882,6 +2882,11 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
                 if(token!==epoch)return {ok:false};
                 if(!isCurrent()||!audio.isLeaseCurrent(handle,next)){await stop();return {ok:false};}
                 var now=ctx.currentTime-startOffset+(preRoll?scoreUI.COUNT_IN_OUTPUT_SETTLE_SECONDS:0),current={nodes:new Set(),remaining:events.length,startedAt:now,duration:holdSeconds||0,cursor:0,cycle:0};voice=current;
+                if(preRoll && scoreUI.countInSupportEnabled()){
+                    current.countSupport=scoreUI.startCountInSupport(ctx,outputFor(ctx,'count'),lead);
+                    now=current.countSupport.firstBeat-countEvents[0].start;
+                    current.startedAt=now;
+                }
                 function finish(){if(voice!==current||token!==epoch)return;cancelTimers();silence();idle(ctx,token);}
                 var silentClicks=[];
                 function refreshClicks(){var pending=silentClicks;silentClicks=[];for(var skipped of pending)if(now+lead+skipped.offset+skipped.event.start>=ctx.currentTime+.005){if(options.isMetronomeEnabled?.()===false)silentClicks.push(skipped);else schedule(skipped.event,skipped.offset);}}current.refreshClicks=refreshClicks;
@@ -2927,7 +2932,7 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
             }catch(e){if(token===epoch){await stop();error='音を開始できませんでした。音源や端末の音声設定を確認してください。';return {ok:false,error:error};}return {ok:false};}
         }
         async function play(midi,isCurrent){var r=await playEvents([{midi:midi,part:'piano',start:0,duration:1.6,gain:.45}],isCurrent);return r.ok?{ok:true,midi:midi,frequency:440*Math.pow(2,(midi-69)/12)}:r;}
-        return {dispose:function(){return handle?audio.disposeSession(handle):Promise.resolve({ok:true});},play:play,playEvents:playEvents,setMix:setMix,cancel:cancel,stop:stop,snapshot:function(){return {playing:!!voice,mode:mode,elapsedSeconds:voice&&context?Math.max(0,context.currentTime-voice.startedAt):0,visualElapsedSeconds:voice&&context?Math.max(0,(options.outputTime?options.outputTime(context):context.currentTime)-voice.startedAt):0,contextCount:contexts.size,error:error};}};
+        return {dispose:function(){return handle?audio.disposeSession(handle):Promise.resolve({ok:true});},play:play,playEvents:playEvents,setMix:setMix,cancel:cancel,stop:stop,snapshot:function(){return {playing:!!voice,mode:mode,preparingCountIn:!!voice?.countSupport && context.currentTime<voice.countSupport.firstBeat,elapsedSeconds:voice&&context?Math.max(0,context.currentTime-voice.startedAt):0,visualElapsedSeconds:voice&&context?Math.max(0,(options.outputTime?options.outputTime(context):context.currentTime)-voice.startedAt):0,contextCount:contexts.size,error:error};}};
     }
     // End short pitch audition.
     var pianoBankPromise=null,guitarBankPromise=null,pianoDecoded=new Map();
@@ -3078,7 +3083,7 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
         previewRAF=null;if(barPreviewPhase!=='playing'||!pianoAudition)return;
         if(!currentFrame(previewFrame)||!state.active||document.hidden){stopPianoAudition();return;}
         var sample=pianoAudition.snapshot(),elapsed=Math.max(0,(sample.visualElapsedSeconds??sample.elapsedSeconds)-.03-playbackVisualDelay/1000);
-        if(previewCountIn&&elapsed<previewCountIn.duration){var countPosition=q('sc-song-position');if(countPosition)countPosition.textContent='カウント '+Math.min(previewCountIn.beats,Math.floor(elapsed/previewCountIn.beatSeconds)+1)+' / '+previewCountIn.beats;previewRAF=requestAnimationFrame(paintPlayhead);return;}
+        if(previewCountIn&&elapsed<previewCountIn.duration){var countPosition=q('sc-song-position');if(countPosition)countPosition.textContent=sample.preparingCountIn?'カウント準備中':'カウント '+Math.min(previewCountIn.beats,Math.floor(elapsed/previewCountIn.beatSeconds)+1)+' / '+previewCountIn.beats;previewRAF=requestAnimationFrame(paintPlayhead);return;}
         elapsed=Math.max(previewStartOffset,elapsed-(previewCountIn?.duration||0));if(previewLoopPeriod)elapsed%=previewLoopPeriod;var span=previewSpans?(previewSpans.find(function(s){return elapsed<s.end;})||previewSpans[previewSpans.length-1]):null;
         var barTicks=getBeats(state.project)*480;
         var number=span?span.index+1:state.selectedBarNumber,tick=Math.min(barTicks-.001,Math.max(0,(elapsed-(span?span.start:0))/previewSecondsPerTick));
@@ -3120,7 +3125,7 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
     // Preload on workspace activation; never await an import inside the audio gesture.
     var scorePlayback=null,scoreUI=null,scorePlaybackPending=null;
     function prepareScorePlayback(){
-        if(!scorePlaybackPending)scorePlaybackPending=Promise.all([import('./score-playback.mjs?v=0.243.1-rc.1'),import('../score-ui.mjs?v=0.204.0-dev.1'),import('./editor-scroll.mjs')]).then(function(modules){scorePlayback=modules[0];scoreUI=modules[1];if(els.root){mountEditorScroll(modules[2]);scoreUI.applyScoreTheme(els.root,CS().localPaperLayout?.value.appearance.interaction);if(els.slotOverlay)scoreUI.applyScoreTheme(els.slotOverlay,CS().localPaperLayout?.value.appearance.interaction);scoreUI.installScoreUI(document);var audio=q('sc-playback-settings');if(audio)scoreUI.styleAudioButton(audio);mountPracticeTransport();if(!scoreFullscreen){scoreFullscreen=scoreUI.mountScoreFullscreen(els.root,q('sc-toolbar-head-actions'),{className:'sc-focused',attribute:'scoreFullscreen',openSettings:()=>q('sc-paper-settings')?.click()});scoreFullscreen.button.id='sc-fullscreen';els.root.addEventListener('scorefullscreenchange',function(){if(barPreviewPhase==='playing')beginPlaybackFollow();});const fullscreenCommand=q('sc-menu-fullscreen');if(fullscreenCommand)fullscreenCommand.disabled=false;}}return scorePlayback;}).catch(function(){scorePlaybackPending=null;});return scorePlaybackPending;
+        if(!scorePlaybackPending)scorePlaybackPending=Promise.all([import('./score-playback.mjs?v=0.243.1-rc.1'),import('../score-ui.mjs'),import('./editor-scroll.mjs')]).then(function(modules){scorePlayback=modules[0];scoreUI=modules[1];if(els.root){mountEditorScroll(modules[2]);scoreUI.applyScoreTheme(els.root,CS().localPaperLayout?.value.appearance.interaction);if(els.slotOverlay)scoreUI.applyScoreTheme(els.slotOverlay,CS().localPaperLayout?.value.appearance.interaction);scoreUI.installScoreUI(document);var audio=q('sc-playback-settings');if(audio)scoreUI.styleAudioButton(audio);mountPracticeTransport();if(!scoreFullscreen){scoreFullscreen=scoreUI.mountScoreFullscreen(els.root,q('sc-toolbar-head-actions'),{className:'sc-focused',attribute:'scoreFullscreen',openSettings:()=>q('sc-paper-settings')?.click()});scoreFullscreen.button.id='sc-fullscreen';els.root.addEventListener('scorefullscreenchange',function(){if(barPreviewPhase==='playing')beginPlaybackFollow();});const fullscreenCommand=q('sc-menu-fullscreen');if(fullscreenCommand)fullscreenCommand.disabled=false;}}return scorePlayback;}).catch(function(){scorePlaybackPending=null;});return scorePlaybackPending;
     }
     function refreshPracticeTransport(){
         if(practiceOwner!==state.session){practiceOwner=state.session;var saved=CS().storage.getAppSetting('scorePracticeBpmV1'),tempo=saved?.[state.session?.draft.projectId];practiceBpm=typeof tempo==='number'&&Number.isFinite(tempo)&&tempo>=20&&tempo<=400?tempo:null;editorRepeat=false;autoRangeRepeat=false;lastAutoRange='';}
@@ -6764,7 +6769,7 @@ dialog.sc-cell-value-dialog{width:min(30rem,calc(100vw - 16px));}
     function bindBrowsingCard(dialog,options){
         // The file menu is available even before the playback UI has finished loading.
         if(scoreUI)scoreUI.bindOutsideDismiss(dialog,options);
-        else import('../score-ui.mjs?v=0.204.0-dev.1').then(ui=>{
+        else import('../score-ui.mjs').then(ui=>{
             if(dialog.open)ui.bindOutsideDismiss(dialog,options);
         });
     }
