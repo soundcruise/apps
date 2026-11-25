@@ -80,7 +80,7 @@
                         '<button type="button" class="cc-btn cc-btn-secondary cc-btn--small" id="cc-builder-edit">✎ 名前を編集</button>' +
                         '<button hidden type="button" class="cc-btn cc-btn-secondary cc-btn--small" id="cc-builder-auto">自動に戻す</button>' +
                 '<input hidden type="text" id="cc-builder-name" class="cc-input cc-builder-name" maxlength="64" autocomplete="off" spellcheck="false" aria-label="コード名">' +
-                        '<small hidden id="cc-builder-hint">譜面に出す名前を変更できます。構成音はそのままです。</small>' +
+                        '<small hidden id="cc-builder-hint">コード名の表記を変更できます。構成音はそのままです。</small>' +
                     '</div>' +
                     '<button type="button" class="cc-btn cc-btn-primary cc-btn--block" id="cc-builder-apply">指板に表示</button>' +
                 '</div>' +
