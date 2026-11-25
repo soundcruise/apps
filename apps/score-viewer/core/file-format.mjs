@@ -1,6 +1,6 @@
 import {assertJSON, insist, record, clone, freeze, canonicalJSON} from './json.mjs';
 
-export const VIEWER_VERSION = '0.24.0-dev.1';
+export const VIEWER_VERSION = '0.24.1-dev.1';
 export const SCORE_FORMAT = 'sound-cruise/score-view';
 export const SCORE_EXTENSION = '.cruise-score.json';
 // Schema2 allows 4 Mi UTF-16 code units (8 MiB accounting). UTF-8 needs at most

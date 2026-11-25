@@ -45,6 +45,11 @@ for (const engine of ['chrome', 'webkit']) test('portrait PDF through touch menu
         await page.waitForFunction(() => document.querySelector('[data-export-folder]').selectedOptions[0]?.textContent === '確認用');
         await page.getByRole('button', {name: '追加する', exact: true}).tap();
         await page.waitForFunction(() => !CruiseViewer.view.hasUnsaved());
+        const directZoom = page.locator('.sv-toolbar:visible > .sv-zoom');
+        await directZoom.locator('[data-pdf-action=zoom-out]').tap();
+        assert.equal((await read()).zoom, .9);
+        await directZoom.locator('[data-pdf-action=fit]').tap();
+        assert.equal((await read()).zoom, 1);
         await menu();
         const zoom = page.locator('.sv-main-menu:visible .sv-zoom button');
         await zoom.last().tap();
@@ -77,8 +82,8 @@ for (const engine of ['chrome', 'webkit']) test('portrait PDF through touch menu
         ]);
         assert.deepEqual(await fs.readFile(await download.path()), await fs.readFile(fixture));
         const bars = await page.locator('.sv-toolbar:visible,.sv-transport:visible').evaluateAll(es =>
-            es.map(e => ({width: e.clientWidth, scroll: e.scrollWidth, height: e.getBoundingClientRect().height})));
-        assert(bars.every(e => e.scroll <= e.width + 2 && e.height <= 68), JSON.stringify(bars));
+            es.map(e => ({width: e.clientWidth, scroll: e.scrollWidth, height: e.getBoundingClientRect().height, toolbar: e.matches('.sv-toolbar')})));
+        assert(bars.every(e => e.scroll <= e.width + 2 && e.height <= (e.toolbar ? 112 : 68)), JSON.stringify(bars));
         assert.deepEqual(errors, []); assert.deepEqual(external, []);
     } finally { await context.close(); await browser.close(); }
 });
