@@ -1,5 +1,5 @@
 import {chordVoicing, strumVoices} from './chord-audition.mjs';
-import {CONNECTED_STRUM_RELEASE, stringDampTime} from '../score-audio.mjs';
+import {COUNT_IN_PULSE_SECONDS, CONNECTED_STRUM_RELEASE, stringDampTime} from '../score-audio.mjs';
 import {createHarmonyTimeline} from './score-harmony.mjs';
 
 // Pure, read-only score -> audio projection. Times are seconds from one audio clock.
@@ -159,7 +159,7 @@ export function buildCountIn(project) {
         throw Error('カウントインのBPM・拍子を確認してください');
     const beatSeconds=60/bpm,beats=timeSignature.beats;
     return {duration:beats*beatSeconds,beatSeconds,beats,events:Array.from({length:beats},(_,i)=>({
-        part:'count',midi:i===0?84:72,start:.03+i*beatSeconds,duration:.055,gain:i===0?.16:.12
+        part:'count',midi:i===0?84:72,start:.03+i*beatSeconds,duration:COUNT_IN_PULSE_SECONDS,gain:i===0?.16:.12
     }))};
 }
 

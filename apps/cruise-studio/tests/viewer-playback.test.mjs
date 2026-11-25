@@ -67,7 +67,7 @@ test('slow count tone synthesis cannot consume the viewer’s first click',async
     release();assert(await playing);
     assert.equal(f.player.snapshot().stats.parts.count,4);
     assert(f.sources[0].startTime-f.ctx.currentTime>=.12);
-    near(f.sources[0].stoppedAt-f.sources[0].startTime,.055);
+    near(f.sources[0].stoppedAt-f.sources[0].startTime,.115);
     await f.player.dispose();
 });
 function addTiedMelody(score){

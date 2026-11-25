@@ -26,6 +26,21 @@ for(const bpm of [20,100,400])test('one bar pre-roll at '+bpm+' BPM leaves Proje
  r.events.forEach((e,i)=>assert(Math.abs(e.start-(.03+i*60/bpm))<1e-9));
  assert.deepEqual(r.events.map(e=>e.midi),[84,72,72,72]);assert(r.events[0].gain>r.events[1].gain);assert.equal(JSON.stringify(p),before);
 });
+test('each count timbre retains energy after the first 60 ms even on unaccented beats',()=>{
+ const ctx={sampleRate:48000,createBuffer(channels,length,sampleRate){
+  const data=new Float32Array(length);
+  return {duration:length/sampleRate,getChannelData:()=>data};
+ }};
+ for(const tone of Object.keys(scoreUI.METRONOME_SOUNDS))for(const midi of [72,84]){
+  const click=scoreUI.metronomeSample(ctx,midi,tone).buffer;
+  const count=scoreUI.metronomeSample(ctx,midi,tone,'count').buffer;
+  assert.equal(click.duration,.06);
+  assert.equal(count.duration,.115);
+  const tail=count.getChannelData(0).subarray(.06*ctx.sampleRate,.08*ctx.sampleRate);
+  const rms=Math.sqrt(tail.reduce((sum,value)=>sum+value*value,0)/tail.length);
+  assert(rms>.05,tone+' '+midi+' tail RMS '+rms);
+ }
+});
 test('unsupported or invalid pre-roll inputs fail without inventing a meter',()=>{
  for(const bpm of [NaN,Infinity,0,19,401,'100'])assert.throws(()=>buildCountIn(project(bpm)));
  for(const meter of [{beats:5,beatUnit:4},{beats:6,beatUnit:8},null])assert.throws(()=>buildCountIn({songInfo:{bpm:100,timeSignature:meter}}));

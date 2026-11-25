@@ -24,6 +24,8 @@ export function trimSampleAttack(context,buffer){const start=attackFrame(buffer)
 // Allow a newly resumed audio output to settle before the first short count click.
 // Both transports add this to their normal 30 ms scheduling lead, once per count-in.
 export const COUNT_IN_OUTPUT_SETTLE_SECONDS = .12;
+// At 400 BPM a beat lasts 150 ms. Leave a distinct gap even at that tempo.
+export const COUNT_IN_PULSE_SECONDS = .115;
 export const GUITAR_LEAD_SECONDS = .010;
 export const CONNECTED_STRUM_RELEASE = .008;
 
@@ -35,15 +37,20 @@ export function stringDampTime(beat, nextPick, samePitch, followingCut) {
 export const METRONOME_SOUNDS=Object.freeze({click:'クリック',wood:'ウッド',beep:'電子音',hihat:'ハイハット'});
 export const normalizeMetronomeSound=value=>Object.hasOwn(METRONOME_SOUNDS,value)?value:'click';
 const beatBuffers=new WeakMap();
-export function metronomeSample(context,midi,tone='click'){
- tone=normalizeMetronomeSound(tone);let cache=beatBuffers.get(context);if(!cache){cache=new Map();beatBuffers.set(context,cache);}const key=tone+':'+midi;if(cache.has(key))return cache.get(key);
- const buffer=context.createBuffer(1,Math.ceil(context.sampleRate*.06),context.sampleRate),data=buffer.getChannelData(0),high=midi===84;
+export function metronomeSample(context,midi,tone='click',part='click'){
+ const counting=part==='count';
+ tone=normalizeMetronomeSound(tone);let cache=beatBuffers.get(context);if(!cache){cache=new Map();beatBuffers.set(context,cache);}const key=part+':'+tone+':'+midi;if(cache.has(key))return cache.get(key);
+ const buffer=context.createBuffer(1,Math.ceil(context.sampleRate*(counting?COUNT_IN_PULSE_SECONDS:.06)),context.sampleRate),data=buffer.getChannelData(0),high=midi===84;
  let seed=9137;
  let previous=0;
- for(let i=0;i<data.length;i++){const t=i/context.sampleRate,a=Math.min(1,t/.001);let raw;
-  if(tone==='wood'){seed=(seed*1664525+1013904223)>>>0;raw=a*Math.exp(-t/.009)*(.7*Math.sin(2*Math.PI*(high?1900:1250)*t)+.3*(seed/2147483648-1));}
-  else if(tone==='hihat'){seed=(seed*1664525+1013904223)>>>0;const noise=seed/2147483648-1,hp=noise-.88*previous;previous=noise;const metal=[1,1.342,1.784,2.112].reduce((v,r)=>v+Math.sin(2*Math.PI*(high?4200:3300)*r*t),0)/4;raw=a*Math.exp(-t/.018)*(.65*hp+.35*metal);}
-  else raw=Math.sin(2*Math.PI*(tone==='beep'?(high?1200:800):(high?1500:1000))*t)*a*Math.exp(-t/(tone==='beep'?.024:.018));
+ for(let i=0;i<data.length;i++){const t=i/context.sampleRate,a=Math.min(1,t/.001);
+  // Retain the attack and pitch of each timbre. A slower decay leaves an
+  // audible body if a speaker attenuates the initial transient.
+  const decayTime=counting?t*.32:t;
+  let raw;
+  if(tone==='wood'){seed=(seed*1664525+1013904223)>>>0;raw=a*Math.exp(-decayTime/.009)*(.7*Math.sin(2*Math.PI*(high?1900:1250)*t)+.3*(seed/2147483648-1));}
+  else if(tone==='hihat'){seed=(seed*1664525+1013904223)>>>0;const noise=seed/2147483648-1,hp=noise-.88*previous;previous=noise;const metal=[1,1.342,1.784,2.112].reduce((v,r)=>v+Math.sin(2*Math.PI*(high?4200:3300)*r*t),0)/4;raw=a*Math.exp(-decayTime/.018)*(.65*hp+.35*metal);}
+  else raw=Math.sin(2*Math.PI*(tone==='beep'?(high?1200:800):(high?1500:1000))*t)*a*Math.exp(-decayTime/(tone==='beep'?.024:.018));
   // Peak-safe soft limiting increases the beat's body without compressing music.
   data[i]=.92*Math.tanh(raw*3);
  }
