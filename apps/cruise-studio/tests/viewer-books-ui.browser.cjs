@@ -50,7 +50,7 @@ for(const engine of ['chrome','webkit'])test('books/menu/output UI '+engine,asyn
  }));
  await t.test('horizontal flow uses the visible left edge and restores the saved scrolling choices',()=>fresh(async p=>{
   await prepare(p);
-  await p.getByLabel('譜面の配置',{exact:true}).selectOption('horizontal');
+  await p.click('[data-viewer-display-toggle]');await p.click('[data-viewer-flow=horizontal]');
   await require('./helpers/viewer-regression-choices.cjs').saveFromToolbar(p);
   await p.waitForFunction(()=>!CruiseViewer.view.hasUnsaved());
   await menu(p,'[data-viewer-action=scroll-settings]');const d=p.getByRole('dialog',{name:'譜面の自動スクロール設定'});

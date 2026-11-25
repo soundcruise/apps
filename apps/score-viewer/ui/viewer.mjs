@@ -41,8 +41,11 @@ export function mountNativeViewer({host, contract, library, renderPaper,createPl
     const fileMenu=mountFileMenu({button,open,files});
     const input=node('input',undefined,bar);input.type='file';input.accept='.cruise-score.json,application/json';input.hidden=true;input.dataset.viewerFile='';
     const pdfInput=node('input',undefined,bar);pdfInput.type='file';pdfInput.accept='.pdf,application/pdf';pdfInput.hidden=true;pdfInput.dataset.viewerPDFImport='';
-    const layoutLabel=node('label','',bar),flow=node('select',undefined,layoutLabel);flow.setAttribute('aria-label','譜面の配置');
-    for(const [value,text] of [['responsive','画面に合わせる'],['source','元の配置'],['horizontal','横']]){const o=node('option',text,flow);o.value=value;}
+    const layouts = [
+        {value:'responsive', name:'画面に合わせる', short:'画面幅'},
+        {value:'source', name:'元の配置', short:'元の配置'},
+        {value:'horizontal', name:'横', short:'横'}
+    ];
     const zoom=node('div',undefined,bar);zoom.className='sv-zoom';zoom.setAttribute('role','group');zoom.setAttribute('aria-label','譜面の拡大縮小');
     const minus=button('−','zoom-out',zoom),percent=button('100%','zoom-reset',zoom),plus=button('＋','zoom-in',zoom);
     minus.setAttribute('aria-label','譜面を縮小');plus.setAttribute('aria-label','譜面を拡大');percent.setAttribute('aria-label','倍率を100%に戻す');
@@ -69,10 +72,28 @@ export function mountNativeViewer({host, contract, library, renderPaper,createPl
     const transportLeft=node('div',undefined,transport),transportCenter=node('div',undefined,transport),transportRight=node('div',undefined,transport);transport.classList.add('sv-centered-transport','sv-clustered-transport');transportLeft.className='sv-transport-left';transportCenter.className='sv-transport-center';transportRight.className='sv-transport-right';tempoLabel.className='sv-tempo-group score-tempo';tempoLabel.setAttribute('role','group');tempoLabel.setAttribute('aria-label','BPM');transportLeft.append(selectionLabel);transportCenter.append(play,repeatButton);transportRight.append(tempoLabel,transport.querySelector('.sv-sound-modes'),transport.querySelector('.sv-sound-select'));transport.replaceChildren(transportLeft,transportCenter,transportRight,start,here,summary);transport.classList.add('score-transport');transport.setAttribute('role','toolbar');transport.setAttribute('aria-label','再生操作');transportCenter.classList.add('score-transport-main');transportRight.classList.add('score-transport-options');play.classList.add('score-play');styleAudioButton(audioSettings);transportRight.append(audioSettings);
     fileMenu.group('ファイル',open,openJSON,fileMenu.mirror(files),fileMenu.mirror(save));
     const viewItems=[fileMenu.mirror(display,'表示設定'),fileMenu.mirror(focusMode.button,'全画面モード')];
-    const menuLayout=doc.createElement('label');menuLayout.textContent='配置';const menuFlow=flow.cloneNode(true);menuFlow.setAttribute('aria-label','メニューの配置');menuFlow.onchange=()=>{flow.value=menuFlow.value;flow.dispatchEvent(new win.Event('change'));};menuLayout.append(menuFlow);const menuZoom=zoom.cloneNode(true);for(const [id,source]of [['zoom-out',minus],['zoom-reset',percent],['zoom-in',plus]]){const b=menuZoom.querySelector('[data-viewer-action='+id+']');delete b.dataset.viewerAction;b.onclick=()=>source.click();}menuLayout.className='sv-menu-field';fileMenu.group('表示',...viewItems,menuLayout,fileMenu.field('拡大・縮小',menuZoom));const audioMenu=fileMenu.mirror(audioSettings,'音設定');audioMenu.dataset.viewerAudioMenu='';fileMenu.group('再生',scrollButton,audioMenu);fileMenu.group('書き出し',exportJSON,syncExport.element,printButton);scrollReset.remove();follow.remove();
-    const displayMenu=doc.createElement('details'),displaySummary=doc.createElement('summary'),displayBody=doc.createElement('div'),displayChecks=new Map();displayMenu.className='sv-display-menu score-display-menu';displaySummary.textContent='表示';displaySummary.dataset.viewerDisplayToggle='';displaySummary.setAttribute('aria-label','表示');displayMenu.append(displaySummary,displayBody);display.before(displayMenu);
+    const menuLayout=doc.createElement('label');menuLayout.textContent='配置';const menuFlow=node('select',undefined,menuLayout);
+    menuFlow.setAttribute('aria-label','メニューの配置');
+    for(const layout of layouts)node('option',layout.name,menuFlow).value=layout.value;
+    menuFlow.onchange=()=>change({flow:menuFlow.value});
+    const menuZoom=zoom.cloneNode(true);for(const [id,source]of [['zoom-out',minus],['zoom-reset',percent],['zoom-in',plus]]){const b=menuZoom.querySelector('[data-viewer-action='+id+']');delete b.dataset.viewerAction;b.onclick=()=>source.click();}menuLayout.className='sv-menu-field';fileMenu.group('表示',...viewItems,menuLayout,fileMenu.field('拡大・縮小',menuZoom));const audioMenu=fileMenu.mirror(audioSettings,'音設定');audioMenu.dataset.viewerAudioMenu='';fileMenu.group('再生',scrollButton,audioMenu);fileMenu.group('書き出し',exportJSON,syncExport.element,printButton);scrollReset.remove();follow.remove();
+    const displayMenu=doc.createElement('details'),displaySummary=doc.createElement('summary'),displayBody=doc.createElement('div'),displayChecks=new Map();displayMenu.className='sv-display-menu score-display-menu';displaySummary.textContent='画面幅';displaySummary.dataset.viewerDisplayToggle='';displaySummary.title='譜面の配置と表示設定';displayMenu.append(displaySummary,displayBody);display.before(displayMenu);
+    const layoutGroup=node('div',undefined,displayBody);
+    layoutGroup.className='sv-layout-choices';
+    layoutGroup.setAttribute('role','group');
+    layoutGroup.setAttribute('aria-label','譜面の配置');
+    for(const layout of layouts){
+        const choice=node('button',layout.name,layoutGroup);
+        choice.type='button';
+        choice.dataset.viewerFlow=layout.value;
+        choice.onclick=()=>{
+            change({flow:layout.value});
+            displayMenu.open=false;
+            displaySummary.focus({preventScroll:true});
+        };
+    }
     for(const [flag,label]of [['showTitle','曲名'],['showArtist','アーティスト名'],['showMeta','曲情報'],['showParts','セクション名'],['showNumbers','小節番号'],['chords','コード'],['forms','フォーム'],['strum','ストローク'],['lyrics','歌詞'],['doremi','メロディ'],['formList','フォーム一覧']]){const row=doc.createElement('label'),check=doc.createElement('input');check.type='checkbox';check.dataset.viewerQuickVisible=flag;row.append(check,doc.createTextNode(label));displayBody.append(row);displayChecks.set(flag,check);check.onchange=()=>{if(!current)return;const p=current.reader.read().presentation,layout=structuredClone(p.layout);if(flag.startsWith('show'))layout[flag]=check.checked;else layout.appearance.visibility[flag]=check.checked;change({layout});};}
-    display.textContent='詳細設定';display.classList.add('sv-display-detail');displayBody.append(display);displaySummary.onclick=e=>{if(!current){e.preventDefault();return;}fileMenu.close?.();};
+    display.textContent='詳細設定';display.classList.add('sv-display-detail');displayBody.append(display);displaySummary.onclick=e=>{if(!current){e.preventDefault();return;}fileMenu.close();};
     doc.addEventListener('pointerdown',e=>{if(!displayMenu.contains(e.target))displayMenu.open=false;},{signal:events.signal});displayMenu.addEventListener('keydown',e=>{if(e.key==='Escape'){e.preventDefault();e.stopPropagation();displayMenu.open=false;displaySummary.focus();}});
     let current=null,active=false,disposed=false,ticket=0,dialog=null,preferenceTimer=null,frame=null,resizeFrame=null,externalBusy=false;
     let lastWidth=0,restoreAnchor=null,restoring=false,selectionNode=null,selectionRange=null,selectionKey='',repeat=false,lastIteration=0;
@@ -88,8 +109,12 @@ export function mountNativeViewer({host, contract, library, renderPaper,createPl
         const p=current?.reader.read().presentation;
         save.disabled=!current||current.saved||current.saving;
         save.hidden=!current||current.saved;save.textContent='この端末に保存';
-        flow.disabled=minus.disabled=percent.disabled=plus.disabled=!current;
-        if(p){menuFlow.value=p.flow;menuZoom.querySelectorAll('button')[1].textContent=Math.round(p.zoom*100)+'%';flow.value=p.flow;percent.textContent=Math.round(p.zoom*100)+'%';minus.disabled=p.zoom<=MIN_SCORE_ZOOM;plus.disabled=p.zoom>=MAX_SCORE_ZOOM;}
+        menuFlow.disabled=minus.disabled=percent.disabled=plus.disabled=!current;
+        const selectedLayout=layouts.find(layout=>layout.value===p?.flow)??layouts[0];
+        if(displaySummary.textContent!==selectedLayout.short)displaySummary.textContent=selectedLayout.short;
+        displaySummary.setAttribute('aria-label',selectedLayout.name+'、譜面の配置と表示設定');
+        for(const choice of layoutGroup.children)choice.setAttribute('aria-pressed',String(choice.dataset.viewerFlow===selectedLayout.value));
+        if(p){menuFlow.value=p.flow;menuZoom.querySelectorAll('button')[1].textContent=Math.round(p.zoom*100)+'%';percent.textContent=Math.round(p.zoom*100)+'%';minus.disabled=p.zoom<=MIN_SCORE_ZOOM;plus.disabled=p.zoom>=MAX_SCORE_ZOOM;}
         [minus,percent,plus].forEach((source,i)=>{menuZoom.querySelectorAll('button')[i].disabled=source.disabled;});
         const sound=current?.player.snapshot(),playing=sound&&['playing','counting','loading'].includes(sound.phase);
         open.disabled=openJSON.disabled=files.disabled=!!playing||externalBusy;fileMenu.sync(!!playing||externalBusy);display.disabled=audioSettings.disabled=!current;displaySummary.setAttribute('aria-disabled',String(!current));for(const [flag,check]of displayChecks){check.disabled=!current;if(current){const v=current.reader.read(),settings=v.document.score.notation.settings;check.checked=flag.startsWith('show')?v.presentation.layout[flag]!==false:flag==='formList'?v.presentation.layout.appearance.visibility.formList===true:(v.presentation.layout.appearance.visibility[flag]??settings[({chords:'showChords',lyrics:'showLyrics',strum:'showStrum',doremi:'showDoremi'})[flag]])!==false;}}
@@ -265,7 +290,6 @@ export function mountNativeViewer({host, contract, library, renderPaper,createPl
     }
     save.onclick=()=>void saveCurrent();
     function change(patch) {if(!current)return;const anchor=captureAnchor();current.reader.setPresentation({...current.reader.read().presentation,...patch});redraw(anchor);schedulePreferences();}
-    flow.onchange=()=>change({flow:flow.value});
     bindScoreZoom(viewport,{read:()=>current.reader.read().presentation.zoom,write:zoom=>change({zoom}),enabled:()=>active&&!!current,signal:events.signal});
     minus.onclick=()=>change({zoom:Math.max(MIN_SCORE_ZOOM,Math.round((current.reader.read().presentation.zoom-.1)*10)/10)});
     plus.onclick=()=>change({zoom:Math.min(MAX_SCORE_ZOOM,Math.round((current.reader.read().presentation.zoom+.1)*10)/10)});

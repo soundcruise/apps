@@ -1,4 +1,4 @@
-async function setViewerFlow(p,value){const input=p.locator('[aria-label="譜面の配置"]');if(await input.isVisible())await input.selectOption(value);else{const menu=p.locator('.sv-file-menu:visible');await menu.evaluate(e=>e.open=true);await p.locator('[aria-label="メニューの配置"]').selectOption(value);await menu.locator('summary').click();}}
+async function setViewerFlow(p,value){await p.locator('[data-viewer-display-toggle]').click();await p.locator('[data-viewer-flow='+value+']').click();}
 // Actual loopback UI, disposable profiles and synthetic scores only.
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {chromium,webkit}=require('playwright');
@@ -69,7 +69,7 @@ for(const engine of ['chrome','webkit'])test('viewer stage 1: '+engine,async t=>
             await p.click('[data-viewer-action=zoom-reset]');
             await setViewerFlow(p,'source');await p.click('[data-viewer-action=zoom-in]');await p.waitForTimeout(300);
             await p.reload();await p.waitForFunction(()=>document.documentElement.dataset.studioEntry==='ready');await p.click('#open-score-viewer');await p.locator('.sv-paper .sheet-title').waitFor();
-            assert.equal(await p.locator('[data-viewer-action=zoom-reset]').innerText(),'110%');assert.equal(await p.locator('[aria-label="譜面の配置"]').inputValue(),'source');
+            assert.equal(await p.locator('[data-viewer-action=zoom-reset]').innerText(),'110%');assert.equal(await p.locator('[aria-label="メニューの配置"]').inputValue(),'source');
             assert(await p.locator('[data-viewer-action=save]').isDisabled());await p.locator('.sv-file-menu:visible').evaluate(e=>e.open=true);await p.click('[data-viewer-action=library]');await p.getByRole('button',{name:'未分類（',exact:false}).click();
             await p.locator('.sv-library [data-viewer-action=library-open]').waitFor();assert.equal(await p.locator('.sv-library [data-viewer-action=library-open]').count(),1);await p.click('[data-viewer-action=library-open]');await settle(p);
             assert.equal(await p.locator('.sv-paper .sheet-title').innerText(),f.file.score.songInfo.title);

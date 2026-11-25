@@ -1,4 +1,4 @@
-async function setViewerFlow(p,value){const input=p.locator('[aria-label="譜面の配置"]');if(await input.isVisible())await input.selectOption(value);else{const menu=p.locator('.sv-file-menu:visible');await menu.evaluate(e=>e.open=true);await p.locator('[aria-label="メニューの配置"]').selectOption(value);await menu.locator('summary').click();}}
+async function setViewerFlow(p,value){await p.locator('[data-viewer-display-toggle]').click();await p.locator('[data-viewer-flow='+value+']').click();}
 const test=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');const{chromium,webkit}=require('playwright');const origin='http://127.0.0.1:18874',out=process.env.VIEWER_PERFORMANCE_QA_OUT;
 for(const engine of ['chrome','webkit'])test('performance viewer UI '+engine,async t=>{
  const{viewerFixture}=await import('./helpers/viewer-fixture.mjs'),f=viewerFixture(),file=await f.contract.codec.encode(f.score,{...f.metadata,defaultPresentation:{flow:'source',layout:{barsPerLine:4},rows:[{barId:f.score.bars[0].id,columns:4,used:3}]}});

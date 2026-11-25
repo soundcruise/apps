@@ -5,16 +5,21 @@ const origin = 'http://127.0.0.1:18874';
 
 async function checkToolbar(page, touch) {
     const bar = page.locator('.sv-toolbar:visible');
-    const layout = bar.locator(':scope > label > select');
+    const layout = bar.locator('[data-viewer-display-toggle]');
     const zoom = bar.locator(':scope > .sv-zoom');
     const reset = zoom.getByRole('button', {name:'倍率を100%に戻す'});
     assert(await layout.isVisible(), 'layout is accessible directly on the toolbar');
     assert(await zoom.isVisible(), 'zoom is accessible directly on the toolbar');
+    const press = button => touch ? button.tap() : button.click();
     for (const flow of ['source', 'horizontal', 'responsive']) {
-        await layout.selectOption(flow);
+        await press(layout);
+        const choice=bar.locator('[data-viewer-flow="'+flow+'"]');
+        await press(choice);
+        assert.equal(await layout.innerText(), {source:'元の配置',horizontal:'横',responsive:'画面幅'}[flow]);
+        assert.equal(await choice.getAttribute('aria-pressed'),'true');
+        assert(await bar.evaluate(el=>el.scrollWidth<=el.clientWidth+1));
         assert.equal(await bar.locator('[aria-label="メニューの配置"]').inputValue(), flow);
     }
-    const press = button => touch ? button.tap() : button.click();
     await press(reset);
     await press(zoom.getByRole('button', {name:'譜面を拡大'}));
     assert(parseInt(await reset.innerText()) > 100);
@@ -22,11 +27,17 @@ async function checkToolbar(page, touch) {
     await press(zoom.getByRole('button', {name:'譜面を縮小'}));
     assert(parseInt(await reset.innerText()) < 100);
     await press(reset);
+    const menu=bar.locator('.sv-main-menu');
+    await press(menu.locator('summary'));
+    assert(await menu.getByRole('button',{name:'全画面モード',exact:true}).isVisible());
+    await press(menu.locator('summary'));
     assert.equal(await reset.innerText(), '100%');
     const geometry = await bar.evaluate(el => {
         const rect = el.getBoundingClientRect();
         const controls = [...el.querySelectorAll(':scope > details > summary, :scope > label > select, :scope > button, :scope > .sv-zoom > button')].filter(n => n.offsetWidth);
         return {
+            smallestWidth:Math.min(...controls.map(n=>n.getBoundingClientRect().width)),
+            smallestHeight:Math.min(...controls.map(n=>n.getBoundingClientRect().height)),
             width:rect.width, height:rect.height, overflow:el.scrollWidth-el.clientWidth,
             reachable:controls.every(n => {
                 const r = n.getBoundingClientRect();
@@ -35,7 +46,7 @@ async function checkToolbar(page, touch) {
             })
         };
     });
-    assert(geometry.reachable && geometry.overflow<=1 && geometry.height<=112, JSON.stringify(geometry));
+    assert(geometry.reachable && geometry.overflow<=1 && geometry.height<=68 && (geometry.width>570 || (geometry.smallestWidth>=44 && geometry.smallestHeight>=44)), JSON.stringify(geometry));
     return geometry;
 }
 
@@ -56,10 +67,10 @@ for (const name of ['chrome','webkit']) test('direct score controls in the Studi
         await phone.goto(origin+'/apps/score-viewer/local/');
         await phone.waitForFunction(()=>!!window.CruiseViewer);
         assert(await phone.evaluate(text=>CruiseViewer.view.openBytes(text),file.text));
-        for(const width of [320,390,844]){
+        for(const width of [320,360,390,844]){
             await phone.setViewportSize({width,height:width===844?390:844});
             const size=await checkToolbar(phone,true);
-            assert(size.height <= (width===844?68:112));
+            assert(size.height <= 68);
         }
     } finally { await browser.close(); }
 });

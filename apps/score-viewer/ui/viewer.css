@@ -217,15 +217,40 @@
 :is(.sv-settings,.sc-playback-dialog) button.score-scroll-link:hover{color:var(--studio-text-primary,#fff)}
 #screen-sheet-cruise .sv-scroll-settings{z-index:10020}
 
-/* A dock can be phone-width even when the Studio window is wide. */
+/* Keep the current layout and all three zoom targets on the toolbar. */
+.sv-toolbar > .sv-main-menu > summary > svg,
+.sv-toolbar > :is([data-viewer-action=library],[data-pdf-action=library]) > svg { display:none; }
+.sv-layout-choices { display:grid; gap:2px; padding-bottom:8px; border-bottom:1px solid #71839066; }
+.sv-layout-choices button { text-align:left; min-height:44px; }
+.sv-layout-choices button[aria-pressed=true] { color:var(--studio-accent-text,#e6d29b); background:#cdb47426; }
+.sv-layout-choices button[aria-pressed=true]::after { content:'✓'; float:right; }
+
 @container viewer (max-width: 570px) {
-    .sv-toolbar:has(> label > select) {
-        display: grid;
-        grid-template-columns: auto auto 1fr auto;
+    .sv-format-host .sv-viewer > .sv-toolbar { flex-wrap:nowrap; position:relative; gap:2px; padding:3px; }
+    /* The icon-button base style also sets display. Keep fullscreen in the menu. */
+    .sv-toolbar > [data-viewer-focus] { display:none!important; }
+    .sv-toolbar > .sv-main-menu > summary > span,
+    .sv-toolbar > .sv-main-menu > summary::after { display:none; }
+    .sv-toolbar > .sv-main-menu > summary > svg { display:block; }
+    .sv-toolbar > .sv-main-menu > summary {
+        display:grid; place-items:center; width:44px; height:44px; box-sizing:border-box;
     }
-    .sv-toolbar > .sv-display-menu { grid-column: 3; justify-self: end; }
-    .sv-toolbar:has(> label > select) > [data-viewer-focus] { grid-column: 4; grid-row: 1; }
-    .sv-toolbar > label { grid-column: 1 / 3; grid-row: 2; }
-    .sv-toolbar > label > select { width: 100%; }
-    .sv-toolbar:has(> label > select) > .sv-zoom { grid-column: 3 / 5; grid-row: 2; justify-self: end; }
+    .sv-toolbar > .sv-display-menu { position:static; }
+    .sv-toolbar > .sv-display-menu > div { left:auto; right:4px; top:100%; max-width:calc(100% - 8px); }
+    .sv-toolbar > .sv-display-menu > summary { min-width:44px; padding:4px!important; }
+    .sv-toolbar > .sv-display-menu > summary::after { margin-left:3px; }
+    .sv-toolbar > .sv-zoom {
+        margin:0; padding:0; gap:0; height:46px; flex:none; overflow:hidden;
+    }
+    .sv-toolbar > .sv-zoom > button {
+        box-sizing:border-box; min-width:44px; min-height:44px; height:44px; padding:0 3px; white-space:nowrap;
+    }
+    .sv-toolbar:has([data-pdf-file]) > .sv-zoom { margin-left:auto; }
+}
+@container viewer (max-width: 335px) {
+    .sv-toolbar > :is([data-viewer-action=library],[data-pdf-action=library]) {
+        display:grid; place-items:center; box-sizing:border-box; width:44px; height:44px;
+    }
+    .sv-toolbar > :is([data-viewer-action=library],[data-pdf-action=library]) > svg { display:block; }
+    .sv-toolbar > :is([data-viewer-action=library],[data-pdf-action=library]) > span { display:none; }
 }
