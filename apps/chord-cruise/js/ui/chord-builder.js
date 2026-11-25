@@ -33,7 +33,6 @@
                     '<h3 class="cc-modal-title">コードを作る</h3>' +
                     '<button type="button" class="cc-btn cc-btn-secondary cc-btn--small" id="cc-builder-cancel">キャンセル</button>' +
                 '</div>' +
-                '<input type="text" id="cc-builder-name" class="cc-input cc-builder-name" maxlength="64" autocomplete="off" spellcheck="false" aria-label="名前（タップして編集できます）">' +
                 '<div class="cc-builder-grid">' +
                     '<label class="cc-field cc-builder-field--wide"><span class="cc-field-label">ルート音</span>' +
                         '<select id="cc-builder-root" class="cc-select">' + rootOptions + '</select></label>' +
@@ -74,7 +73,15 @@
                     '</div>' +
                 '</div>' +
                 '<div class="cc-save-actions cc-builder-actions">' +
-                    '<button type="button" class="cc-btn cc-btn-secondary cc-btn--block" id="cc-builder-reset">リセット</button>' +
+                    '<button type="button" class="cc-btn cc-btn-secondary cc-btn--block" id="cc-builder-reset">構成をリセット</button>' +
+                    '<div class="cc-builder-result">' +
+                        '<span id="cc-builder-status" class="cc-field-label">コード名（自動）</span>' +
+                        '<strong id="cc-builder-preview"></strong>' +
+                        '<button type="button" class="cc-btn cc-btn-secondary cc-btn--small" id="cc-builder-edit">✎ 名前を編集</button>' +
+                        '<button hidden type="button" class="cc-btn cc-btn-secondary cc-btn--small" id="cc-builder-auto">自動に戻す</button>' +
+                '<input hidden type="text" id="cc-builder-name" class="cc-input cc-builder-name" maxlength="64" autocomplete="off" spellcheck="false" aria-label="コード名">' +
+                        '<small hidden id="cc-builder-hint">譜面に出す名前を変更できます。構成音はそのままです。</small>' +
+                    '</div>' +
                     '<button type="button" class="cc-btn cc-btn-primary cc-btn--block" id="cc-builder-apply">指板に表示</button>' +
                 '</div>' +
             '</div>';
@@ -98,11 +105,25 @@
 
         // 名前の手編集を検知（音感クルーズPROと同じ挙動: 手で触ったら自動更新しない）
         var nameInput = document.getElementById('cc-builder-name');
+        const edit=document.getElementById('cc-builder-edit');
+        edit.onclick=function () {
+            nameInput.hidden=false;
+            paintName();
+            nameInput.focus();
+            nameInput.select();
+        };
+        document.getElementById('cc-builder-auto').onclick=function () {
+            nameUserEdited=false;
+            nameInput.hidden=true;
+            refreshName();
+            edit.focus();
+        };
         nameInput.addEventListener('input', function () {
-            nameUserEdited = nameInput.value.trim() !== '';
-            if (!nameUserEdited) {
-                refreshName();
-            }
+            nameUserEdited=nameInput.value.trim() !== '' && nameInput.value.trim() !== model().buildCustomChord(readSpec(), '').symbol;
+            paintName();
+        });
+        nameInput.addEventListener('blur', function () {
+            if (!nameUserEdited) refreshName();
         });
 
         ['cc-builder-root', 'cc-builder-third', 'cc-builder-fifth', 'cc-builder-seventh'].forEach(function (id) {
@@ -170,9 +191,21 @@
         refreshName();
     }
 
+    function paintName() {
+        const input=document.getElementById('cc-builder-name');
+        const preview=document.getElementById('cc-builder-preview');
+        preview.textContent=input.value;
+        preview.hidden=!input.hidden;
+        document.getElementById('cc-builder-edit').hidden=!input.hidden;
+        document.getElementById('cc-builder-hint').hidden=input.hidden;
+        document.getElementById('cc-builder-auto').hidden=!nameUserEdited && input.hidden;
+        document.getElementById('cc-builder-status').textContent=nameUserEdited?'コード名（手動）':'コード名（自動）';
+    }
+
     function refreshName() {
         if (nameUserEdited) return;
         document.getElementById('cc-builder-name').value = model().buildCustomChord(readSpec(), '').symbol;
+        paintName();
     }
 
     function defaultInitialSpec() {
@@ -261,6 +294,7 @@
             checkbox.checked = initialSpec.tensions.indexOf(parseInt(checkbox.value, 10)) !== -1;
         });
         nameUserEdited = false;
+        document.getElementById('cc-builder-name').hidden=true;
         refreshSpecControls();
         document.getElementById('cc-builder-bass').value = initialSpec.bassPc === null ? '' : String(initialSpec.bassPc);
         refreshName();
