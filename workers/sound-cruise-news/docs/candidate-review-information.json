@@ -502,5 +502,77 @@
         }
       ]
     }
+  },
+  {
+    "information": {
+      "version": 1,
+      "url": "https://acousticguitarmagazine.jp/column/2026-1125-ohitorisama-dtm-36/",
+      "source": {
+        "label": "原記事と既存候補の公開日による確認用下書き",
+        "url": "https://acousticguitarmagazine.jp/column/2026-1125-ohitorisama-dtm-36/"
+      },
+      "fields": {
+        "brand": "関口シンゴ",
+        "product": "MIDI",
+        "productType": "guitar_article",
+        "action": "introduction",
+        "publishedAt": "2026-11-25",
+        "label": "関口シンゴがMIDIの仕組みと打ち込みの基礎を解説"
+      },
+      "notes": [
+        {
+          "label": "掲載前の注意",
+          "value": "音楽制作入門の第36回。前回のトラック制作編とは別の回です。"
+        }
+      ]
+    }
+  },
+  {
+    "information": {
+      "version": 1,
+      "url": "https://acousticguitarmagazine.jp/gears/2026-1125-morris-la-021-chippoke/",
+      "source": {
+        "label": "原記事と既存候補の公開日による確認用下書き",
+        "url": "https://acousticguitarmagazine.jp/gears/2026-1125-morris-la-021-chippoke/"
+      },
+      "fields": {
+        "brand": "Morris",
+        "product": "LA-021",
+        "productType": "guitar_article",
+        "action": "introduction",
+        "publishedAt": "2026-11-25",
+        "label": "大橋ちっぽけがMorrisのミニギターLA-021を試奏"
+      },
+      "notes": [
+        {
+          "label": "掲載前の注意",
+          "value": "PR表記のある試奏記事です。新製品発表とは区別してください。"
+        }
+      ]
+    }
+  },
+  {
+    "information": {
+      "version": 1,
+      "url": "https://www.ikebe-gakki-pb.com/new_product/174203/",
+      "source": {
+        "label": "原記事と既存候補の公開日による確認用下書き",
+        "url": "https://www.ikebe-gakki-pb.com/new_product/174203/"
+      },
+      "fields": {
+        "brand": "Sterling by Music Man",
+        "product": "RAY34",
+        "productType": "electric_guitar_bass",
+        "action": "introduction",
+        "publishedAt": "2026-11-25",
+        "label": "Sterling by Music ManのベースRAY34にStingRayの50周年記念モデル"
+      },
+      "notes": [
+        {
+          "label": "掲載前の注意",
+          "value": "50周年はStingRayの誕生から数えたものです。カラーはPearl Whiteです。"
+        }
+      ]
+    }
   }
 ]
