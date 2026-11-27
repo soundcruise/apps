@@ -3,8 +3,8 @@ import {bookFields} from './agm-book-evidence.js';
 import {parseDocument,DomUtils as D} from 'htmlparser2';
 import {performanceFields} from './agm-performance-evidence.js';
 import {musicReleaseFields} from './agm-music-release.js';
-export const AGM_ARTICLE_PARSER='agm-article-9';
-export const AGM_ARTICLE_PARSERS=Object.freeze([AGM_ARTICLE_PARSER,'agm-article-8','agm-article-7','agm-article-6','agm-article-5','agm-article-4']);
+export const AGM_ARTICLE_PARSER='agm-article-10';
+export const AGM_ARTICLE_PARSERS=Object.freeze([AGM_ARTICLE_PARSER,'agm-article-9','agm-article-8','agm-article-7','agm-article-6','agm-article-5','agm-article-4']);
 import {agmArticleUrl,agmArticleMetadata,AGM_SECTIONS,AGM_PERMISSION_REF} from './agm-sections.js';
 import {agmArticleLabel,agmEditorialCategory,factName} from './agm-article-label.js';
 import {validLabel} from './metadata.js';
@@ -54,6 +54,19 @@ function nameFrom(title,intro,tags,old){
  for(const re of [/^([^、。！？!?「『“（]{2,35}?)(?=が語る|に聞く|が選ぶ|の(?:最新|愛用|使用|作曲)|[“「])/,/、([^、。！？!?]{2,35}?)の作曲法/]){const v=title.match(re)?.[1]?.trim();if(factName(v)&&intro.includes(v))return v;}
  return null;
 }
+// A single-model review binds the product printed before the headline separator
+// to the article's own product heading. Series names and related cards do not
+// establish the model. Credit the player only from a matching lead or trial credit.
+function trialSubject(title,intro,headings){
+ const match=/^([A-Za-z][A-Za-z0-9 .&'-]{1,40})／([A-Za-z0-9][A-Za-z0-9 .&+()'/-]{1,59})\s*[｜|]/.exec(title);
+ if(!match||headings.filter(h=>h===match[1]+'／'+match[2]).length!==1)return null;
+ const mentions=/(?:SOUND CHECK|試奏|レビュー)/i.test(title);
+ const lead=intro.match(/^(?:ギタリスト|シンガー[・]?ソングライター)の([^、。が]{2,35})が[^。]{0,90}試奏/);
+ const credits=[...new Set(headings.map(h=>h.match(/^試奏者\s*[:：]\s*(.{2,35})$/)?.[1]).filter(Boolean).map(normalizePerson))];
+ const speakers=[...new Set([lead?.[1],...credits].filter(Boolean).map(normalizePerson))];
+ if(!mentions&&!lead||speakers.length>1)return null;
+ return {model:match[1]+' '+match[2],person:speakers[0]};
+}
 export function parseAgmArticleEvidence(html,source,row){
  if(typeof html!=='string'||new TextEncoder().encode(html).length>1000000)throw Error('facts_response_too_large');
 
@@ -91,6 +104,15 @@ export function parseAgmArticleEvidence(html,source,row){
  // Explicit model-bearing subsection headings, not related cards or price lists.
  const models=[...new Set(headings.filter(h=>/^[A-Za-z][A-Za-z .&-]{1,35}／[^／]{2,70}$/.test(h)&&/(?:[0-9]|[A-Z]+-[A-Z]+)/.test(h)).map(h=>h.replace('／',' ')))].slice(0,5);
  if(section==='gears'&&models.length&&models.length<=4){f.models=models;f.articleType=/SOUND CHECK|試奏|レビュー|体験/.test(title)?'review':/セレクション|愛用|使用/.test(title)?'equipment':type;f.category=agmEditorialCategory(f.articleType);}
+ if(section==='gears'){
+  const trial=trialSubject(title,intro,headings);
+  if(trial){
+   f.models=[trial.model];
+   f.articleType='review';
+   f.category=agmEditorialCategory(f.articleType);
+   if(trial.person&&(!person||person===trial.person)&&!f.people){f.person=trial.person;f.trialPerformer=trial.person;}
+  }
+ }
 
  const themes=[['headphone',/ヘッドホン|ヘッドフォン/],['chord_progression',/コード進行|カノン進行/],['guitar_roots',/ギタリスト.{0,12}ルーツ|ギターを始めた経緯/],['songwriting',/作曲法|作曲方法/],['fingerstyle',/フィンガー[・ ]?(?:ピッキング|スタイル)/],['singing',/弾き語り/],['solo',/ソロ[・ ]?ギター/],['guitar_career',/軌跡|ギタリスト.{0,10}歩み/],['home_recording',/音楽制作|宅録|DTM/],['rhythm',/リズム/],['acoustic',/アコギ|アコースティック[・ ]?ギター/]];
  const topic=[title,...headings.slice(0,10),intro].map(segment=>themes.find(([,re])=>re.test(segment))).find(Boolean);if(topic)f.topic=topic[0];

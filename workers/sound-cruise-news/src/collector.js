@@ -95,10 +95,11 @@ async function collectSourceInternal(id,store,{mode='off',now=Date.now(),fetcher
     return planned;
    },acquireArticle:async listingEntry=>{
     const inspected=listingEntry.agmCacheInspection;
-    if(!inspected.hit&&(!inspected.attempted||inspected.parserUpgrade)&&!inspected.busy&&(report.requestCounts.article||0)>=AGM_DETAIL_BUDGET){
+    const defer=()=>{
      report.articleCache.deferred++;report.backfill.deferredUrls++;
      return {url:listingEntry.url,agmAcquired:true,agmDeferred:true,title:''};
-    }
+    };
+    if(!inspected.hit&&(!inspected.attempted||inspected.parserUpgrade)&&!inspected.busy&&(report.requestCounts.article||0)>=AGM_DETAIL_BUDGET)return defer();
     if(listingEntry.backlog)report.backfill.replayedUrls++;
     const acquired=await acquireAgmArticle({store,source,url:listingEntry.url,listingTitle:listingEntry.title,now,pepper,
      request:async(url,options)=>{await sleep(delay);return request(url,options);},
@@ -111,7 +112,8 @@ async function collectSourceInternal(id,store,{mode='off',now=Date.now(),fetcher
       }catch{/* Missing primary evidence stays incomplete; never guess. */}}
       if(item?.productFacts)item.factsProvenance=agmProvenance(item.productFacts,proof);
       entry.title='';return {item:item||null,proof};
-     }});
+     }}).catch(error=>{if(error.message==='facts_daily_budget_deferred')return null;throw error;});
+    if(!acquired)return defer();
     report.articleCache[{hit:'hits',fetched:'fetched',not_modified:'notModified',attempted:'attempted'}[acquired.cache]]++;
     return {url:listingEntry.url,agmCachedItem:acquired.item,agmAcquired:true,title:''};
    },onSection:async(section,entries)=>{

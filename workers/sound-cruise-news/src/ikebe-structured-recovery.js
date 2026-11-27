@@ -10,7 +10,7 @@ const find=(n,p)=>D.findAll(x=>x.name&&!hidden(x)&&p(x),n.children||[]);
 const name=v=>typeof v==='string'&&/^[A-Za-z0-9][A-Za-z0-9 .&+()'/-]{1,79}$/.test(v)&&!/\b(?:ignore|instruction|prompt|script)\b/i.test(v);
 const denied=/再入荷|在庫|セール|クーポン|中古|比較|レビュー|旧製品|以前|過去|かもしれ|ではない|関連商品|参考製品|付属品|他社|例えば|交換用|専用のペダル|対応機器/;
 const bound=(s,m)=>new RegExp('(?:^|[^A-Za-z0-9])'+m.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+'(?=$|[^A-Za-z0-9])','i').test(s);
-export function structuredIkebeEvidence(html,row){
+export function structuredIkebeEvidence(html,row,{reviewDraft=false}={}){
  if(row.source_id!=='ikebe'||!/^https:\/\/www\.ikebe-gakki-pb\.com\/new_product\/[1-9][0-9]*\/$/.test(row.source_url||''))throw Error('facts_source_invalid');
  if(typeof html!=='string'||new TextEncoder().encode(html).length>512000)throw Error('facts_response_too_large');
  const doc=parseDocument(html);
@@ -19,7 +19,7 @@ export function structuredIkebeEvidence(html,row){
  if(canon.length!==1||canon[0].attribs.href!==row.source_url||roots.length!==1)throw Error('facts_source_invalid');
  const root=roots[0],headers=root.children.filter(n=>cls(n,'blog_title')&&!hidden(n)),bodies=root.children.filter(n=>cls(n,'main_wrap')&&!hidden(n));
  if(headers.length!==1||bodies.length!==1)throw Error('facts_parser_failure');
- const hs=find(headers[0],n=>n.name==='h1'),dates=find(headers[0],n=>n.name==='time'&&cls(n,'sub_info_date'));
+ const hs=find(headers[0],n=>n.name==='h1'),dates=find(headers[0],n=>n.name==='time'&&cls(n,'sub_info_date')&&(!reviewDraft||/公開$/.test(plain(n))));
  if(hs.length!==1||dates.length!==1||!/^20\d{2}-\d{2}-\d{2}$/.test(dates[0].attribs.datetime||'')||new Date(dates[0].attribs.datetime+'T00:00:00+09:00').toISOString()!==row.published_at||plain(dates[0])!==dates[0].attribs.datetime.replace(/(\d{4})-(\d{2})-(\d{2})/,'$1年$2月$3日公開'))throw Error('facts_date_changed');
  const title=plain(hs[0]),body=bodies[0],heads=body.children.filter(n=>/^h[1-3]$/.test(n.name||'')&&cls(n,'wp-block-heading')&&!hidden(n));
  if(!title||title.length>250||denied.test(title)||!heads.length||heads.length>4||find(body,n=>/^h[1-3]$/.test(n.name)&&cls(n,'wp-block-heading')).length!==heads.length)throw Error('facts_scope_uncertain');
@@ -29,6 +29,19 @@ export function structuredIkebeEvidence(html,row){
  const brand=tagBrands.find(v=>v.toLowerCase()===String(headBrand).toLowerCase())||headBrand;
  if(!name(brand)||fields.some(f=>f.length!==2||f[0].toLowerCase()!==brand.toLowerCase())||!find(headers[0],n=>n.name==='a'&&ikebeTagUrl(n.attribs.href)).some(n=>plain(n).toLowerCase()===brand.toLowerCase()))throw Error('facts_identity_changed');
  const sections=heads.map((h,i)=>{const p=[];for(let n=h.next;n&&n!==heads[i+1];n=n.next)if(n.name==='p'&&cls(n,'wp-block-paragraph')&&!hidden(n))p.push(plain(n));return p;});
+ if(reviewDraft){
+  // Retail articles often repeat a model for each finish. Only strip an
+  // explicitly separated finish/material pair from product headings.
+  if(!find(headers[0],n=>n.name==='li'&&cls(n,'cate-bass')&&plain(n)==='ベース').length)return null;
+  const subject=/新モデル「([^」]{2,55})」が登場/.exec(title);
+  if(!subject||!sections.every(ps=>ps.slice(0,5).some(p=>!denied.test(p)&&p.includes(subject[0]))))return null;
+  const entries=fields.map(f=>/^([A-Za-z0-9][A-Za-z0-9 .'-]{1,45}) ([A-Z]{2,8}[0-9][A-Z0-9-]{0,12}) \(([A-Za-z][A-Za-z0-9 -]{1,30}\/[A-Za-z][A-Za-z0-9 -]{1,22})\)$/.exec(f[1]));
+  if(!entries.every(Boolean)||new Set(entries.map(m=>m[1])).size!==1||new Set(entries.map(m=>m[2]+' '+m[3])).size!==entries.length)return null;
+  const codes=[...new Set(entries.map(m=>m[2]))];
+  const family=/^[A-Z]+/.exec(codes[0])[0];
+  if(codes.length<2||codes.length===entries.length||codes.some(v=>/^[A-Z]+/.exec(v)[0]!==family))return null;
+  return {brand,product:codes.join('／'),productType:'electric_guitar_bass',action:'introduction'};
+ }
  const first=sections[0].slice(0,8).join(' ');
  // Explicit playback-only outdoor/party purpose, not a studio monitor or PA.
  // Ambiguous speakers, recording/performing inputs and related mentions stay held.

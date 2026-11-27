@@ -133,6 +133,19 @@ test('persistent workerd upgrade reservation survives restart; consumed daily ac
  const {localDatabase}=await import('../scripts/local-db.mjs'),{mkdtemp,rm}=await import('node:fs/promises'),{tmpdir}=await import('node:os'),{join}=await import('node:path');const path=await mkdtemp(join(tmpdir(),'news-agm-upgrade-'));let runtime;
  try{runtime=await localDatabase(path);const {s,source}=await setup({},runtime.db),u=url(95),payload={format:'agm-evidence-cache-1',parser:'agm-article-6',item:{sourceUrl:u,productFacts:null}},raw=JSON.stringify(payload);await s.db.prepare('INSERT INTO news_agm_article_cache(canonical_url,payload_json,payload_hash,checked_at,attempted_at) VALUES(?,?,?,?,?)').bind(u,raw,await hash(raw),t,t).run();let calls=0;const options={store:s,source,url:u,now:t+1000,pepper,request:async()=>{calls++;throw Error('facts_timeout');},parse:()=>{throw Error('not reached');}};await assert.rejects(acquireAgmArticle(options),/timeout/);assert.equal(calls,1);await runtime.mf.dispose();runtime=await localDatabase(path);assert.equal((await inspectAgmArticle(runtime.store,source,u,t+61000,pepper)).parserUpgrade,false);assert.equal((await acquireAgmArticle({...options,store:runtime.store,now:t+61000})).cache,'attempted');assert.equal(calls,1);
  }finally{await runtime?.mf.dispose();await rm(path,{recursive:true,force:true});}
- const {s,source}=await setup();for(let i=0;i<9;i++)await s.db.prepare('INSERT INTO news_agm_article_cache(canonical_url,attempted_at) VALUES(?,?)').bind(url(200+i),t).run();const u=url(94),raw=JSON.stringify({format:'agm-evidence-cache-1',parser:'agm-article-6',item:{sourceUrl:u,productFacts:null}});await s.db.prepare('INSERT INTO news_agm_article_cache(canonical_url,payload_json,payload_hash,checked_at,attempted_at) VALUES(?,?,?,?,?)').bind(u,raw,await hash(raw),t,t).run();await assert.rejects(acquireAgmArticle({store:s,source,url:u,now:t+1000,pepper,request:()=>{throw Error('unexpected HTTP');},parse:()=>{}}),/busy/);
+ const {s,source}=await setup();for(let i=0;i<9;i++)await s.db.prepare('INSERT INTO news_agm_article_cache(canonical_url,attempted_at) VALUES(?,?)').bind(url(200+i),t).run();const u=url(94),raw=JSON.stringify({format:'agm-evidence-cache-1',parser:'agm-article-6',item:{sourceUrl:u,productFacts:null}});await s.db.prepare('INSERT INTO news_agm_article_cache(canonical_url,payload_json,payload_hash,checked_at,attempted_at) VALUES(?,?,?,?,?)').bind(u,raw,await hash(raw),t,t).run();await assert.rejects(acquireAgmArticle({store:s,source,url:u,now:t+1000,pepper,request:()=>{throw Error('unexpected HTTP');},parse:()=>{}}),/facts_daily_budget_deferred/);
 });
 test('a cold failed fetch retains a parser attempt marker, never raw response text or fabricated evidence',async()=>{const {s,source}=await setup();await assert.rejects(acquireAgmArticle({store:s,source,url:url(93),now:t,pepper,request:()=>{throw Error('facts_timeout');},parse:()=>{}}),/timeout/);const c=await inspectAgmArticle(s,source,url(93),t+1000,pepper);assert.equal(c.payload.parser,AGM_ARTICLE_PARSER);assert.equal(c.payload.attemptParser,AGM_ARTICLE_PARSER);assert.equal(c.valid,false);assert.equal(c.hit,false);assert.equal(c.parserUpgrade,false);assert.equal(c.payload.proof,undefined);});
+
+test('daily detail slots are shared by new acquisitions and rechecks',async()=>{
+ const {s,source}=await setup();
+ const {agmDetailUsage,AGM_DETAIL_BUDGET}=await import('../src/agm-acquisition.js');
+ for(let i=0;i<AGM_DETAIL_BUDGET-1;i++)await s.db.prepare('INSERT INTO news_agm_article_cache(canonical_url,attempted_at) VALUES(?,?)').bind(url(i),t).run();
+ let requests=0;
+ const attempt=n=>acquireAgmArticle({store:s,source,url:url(n),now:t,pepper,request:async()=>{requests++;return {status:503,headers:new Headers()};},parse:()=>assert.fail('non-200 cannot parse')});
+ const results=await Promise.allSettled([attempt(101),attempt(102)]);
+ assert.deepEqual(results.map(r=>r.reason.message).sort(),['facts_daily_budget_deferred','facts_source_unavailable']);
+ assert.equal(requests,1);
+ assert.equal((await agmDetailUsage(s,t)).used,AGM_DETAIL_BUDGET);
+ assert.equal((await agmDetailUsage(s,t+DAY)).used,0);
+});

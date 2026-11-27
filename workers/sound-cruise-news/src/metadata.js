@@ -355,7 +355,7 @@ export async function candidateFrom(entry,source,robots,now,pepper) {
   if(!factualLabel(facts,eventType)&&recovered?.eventType==='agm_editorial'&&hasDate&&recovered.publishedAt===new Date(timestamp).toISOString()&&recovered.productFacts?.articleUrl===url&&recovered.productFacts.section===entry.agmSection&&agmEditorialLabel(recovered.productFacts,'agm_editorial')){
    facts=recovered.productFacts;category=facts.category;eventType='agm_editorial';
    const p=recovered.proof;
-   if(p?.sourceId===source.id&&p.sourceUrl===url&&p.extractionMethod==='explicit_agm_article_fields'&&p.parserVersion===AGM_ARTICLE_PARSER&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash||''))factsProvenance=JSON.stringify([...Object.keys(facts).map(factField=>({...p,factField})),{...p,factField:'event_type'}]);
+   if(p?.sourceId===source.id&&p.sourceUrl===url&&p.extractionMethod==='explicit_agm_article_fields'&&[AGM_ARTICLE_PARSER,'agm-article-9'].includes(p.parserVersion)&&Number.isSafeInteger(p.verifiedAt)&&p.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(p.responseHash||''))factsProvenance=JSON.stringify([...Object.keys(facts).map(factField=>({...p,factField})),{...p,factField:'event_type'}]);
   }
   const label=factualLabel(facts,eventType),id=await hash(url);
   return {item:{id,sourceId:source.id,sourceName:source.name,sourceUrl:url,normalizedUrl:url,publishedAt:hasDate?new Date(timestamp).toISOString():null,

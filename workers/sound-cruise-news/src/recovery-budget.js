@@ -1,8 +1,10 @@
+import {agmDetailUsage} from './agm-acquisition.js';
 // Source-owned restrictions remain in legalGate/robots. This is the NEWS budget.
 // Calendar-day accounting avoids yesterday's later repair starving today's run.
 export const initialPrimarySource=source=>['ikebe','shimamura'].includes(source?.id);
 export const recoveryDayStart=now=>Date.parse(new Date(now+9*3600000).toISOString().slice(0,10)+'T00:00:00+09:00');
 export async function recoveryBudget(store,source,now){
+ if(source?.id==='agm')return agmDetailUsage(store,now);
  const calendar=initialPrimarySource(source),since=calendar?recoveryDayStart(now):now-86400000;
  const limit=source?.dailyPrimaryArticleLimit||1;
  const row=await store.db.prepare('SELECT SUM(CASE WHEN instr(source_id,?)=1 THEN 0 ELSE 1 END) n,SUM(CASE WHEN instr(source_id,?)=1 THEN 1 ELSE 0 END) recovery_used,MAX(checked_at) at FROM news_facts_sources WHERE (source_id=? OR instr(source_id,?)=1) AND checked_at>=? AND instr(source_id,?)<>1').bind(source.id+':recovery:',source.id+':recovery:',calendar?'':source.id,source.id+':',since,source.id+':maintenance-probe:').first();

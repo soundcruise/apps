@@ -84,9 +84,9 @@ export function parseShimamuraProductEvidence(html,source,row,{officialIdentity=
  }finally{doc=null;}
 }
 
-// Bounded input assistance for multi-model announcements that the stricter
+// Bounded input assistance for retail articles that the stricter
 // publication parsers could not represent. This never returns formal evidence.
-export function shimamuraMultiModelReview(html,source,row){
+export function shimamuraReviewDraft(html,source,row){
  if(!shimamuraProductSurface(row,source))return null;
  const doc=parseDocument(html);
  if(find(doc,n=>n.name==='meta'&&/^(robots|SoundCruiseNewsBot)$/i.test(n.attribs.name||'')).some(n=>optOut(n.attribs.content||'')))return null;
@@ -98,7 +98,17 @@ export function shimamuraMultiModelReview(html,source,row){
  const title=plain(heads[0]),root=roots[0];
  const paragraphs=root.children.filter(n=>n.name==='p'&&cls(n,'wp-block-paragraph')&&!hidden(n)).slice(0,2).map(plain);
  const intro=paragraphs.join(' ');
- if(denied.test(title)||denied.test(intro)||!/登場(?:しました|します)|発表しました|発売しました/.test(intro))return null;
+ if(denied.test(title)||denied.test(intro))return null;
+ if(/SD(?:オーディオ)?プレーヤー/.test(title)){
+  // Some introductions put the manufacturer in the summary, not the headline.
+  // Require the very same quoted model in the title and a single product/JAN row.
+  const player=/^([A-Za-z][A-Za-z0-9 .&'-]{1,40})が[、,][^。]{0,110}SD(?:オーディオ)?プレーヤー「([A-Z][A-Z0-9-]{2,24})」を(?:発売|発表)します[。]/.exec(intro);
+  if(!player)return null;
+  const [,brand,product]=player,tableModels=find(root,n=>n.name==='tr').map(plain).filter(r=>/JAN[：:]/.test(r));
+  if(!title.includes('「'+product+'」')||tableModels.length!==1||!norm(tableModels[0]).startsWith(norm(product+'JAN:')))return null;
+  return {brand,product,productType:'sd_audio_player',action:'introduction'};
+ }
+ if(!/登場(?:しました|します)|発表しました|発売しました/.test(intro))return null;
  const productType=/エレクトリック[・ ]?ギター|ストラトキャスター/.test(title+' '+intro)?'electric_guitar_bass':null;
  if(!productType)return null;
  const quoted=[...intro.matchAll(/「([^」]+)」/g)].map(m=>m[1]).filter(s=>nameOK(s)&&/[0-9]/.test(s));

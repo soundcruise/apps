@@ -30,11 +30,11 @@ export async function candidateAssistedDraft(store,row,now){
  }
  if(assistedTypes[facts.productType])offer('productType',facts.productType);
  if(facts.kind==='assisted_notice'){offer('action',facts.action);offer('qualifier',facts.qualifier);offer('label',row.label);}
- if(row.id&&row.source_id==='shimamura'&&['brand','product','productType','action'].some(key=>!fields[key])){
+ if(row.id&&['shimamura','ikebe'].includes(row.source_id)&&['brand','product','productType','action'].some(key=>!fields[key])){
   const work=await store.db.prepare('SELECT evidence_json FROM news_discovery_work WHERE source_id=? AND normalized_url=? AND candidate_id=?').bind(row.source_id,row.source_url,row.id).first();
   let proof;try{proof=JSON.parse(work?.evidence_json||'null')?.proof;}catch{}
   const review=proof?.reviewDraft;
-  if(review&&proof.sourceId===row.source_id&&proof.sourceUrl===row.source_url&&proof.publishedAt===row.published_at&&proof.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(proof.responseHash||'')&&['brand','product','productType','action'].every(key=>!fields[key]||fields[key]===review[key])){
+  if(review&&proof.sourceId===row.source_id&&proof.sourceUrl===row.source_url&&proof.publishedAt===row.published_at&&Number.isSafeInteger(proof.verifiedAt)&&proof.verifiedAt<=now&&/^[a-f0-9]{64}$/.test(proof.responseHash||'')&&['brand','product','productType','action'].every(key=>!fields[key]||fields[key]===review[key])){
    for(const key of ['brand','product','productType','action']){
     if(fields[key]||!review[key])continue;
     offer(key,review[key]);

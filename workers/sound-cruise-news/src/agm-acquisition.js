@@ -8,6 +8,12 @@ import {factualLabel} from './metadata.js';
 import {eventEndsAt} from './event.js';
 import {DAY,hash} from './policy.js';
 export const AGM_DETAIL_BUDGET=9;
+const detailDay=now=>Math.floor((now+9*3600000)/DAY)*DAY-9*3600000;
+export async function agmDetailUsage(store,now){
+ const since=detailDay(now);
+ const row=await store.db.prepare('SELECT COUNT(*) n FROM news_agm_article_cache WHERE attempted_at>=?').bind(since).first();
+ return {since,limit:AGM_DETAIL_BUDGET,used:row.n,recoveryUsed:0,nextAt:since+DAY};
+}
 const FORMAT='agm-evidence-cache-1';
 const safeHeader=(value,max)=>typeof value==='string'&&value.length<=max&&!/[\x00-\x1f\x7f]/.test(value)?value:null;
 export function agmRevalidationDays(value){const n=Number(value??7);return Number.isInteger(n)&&n>=1&&n<=30?n:7;}
@@ -65,11 +71,17 @@ export async function acquireAgmArticle({store,source,url,now,pepper,listingTitl
  if(cached.hit)return {...cached.payload,cache:'hit'};
  if(cached.attempted&&!cached.parserUpgrade&&!forceRevalidate)return {cache:'attempted',item:null};
  const attemptPayload=!cached.valid?JSON.stringify({...cached.payload,format:FORMAT,parser:cached.payload?.parser||AGM_ARTICLE_PARSER,attemptParser:AGM_ARTICLE_PARSER,...(cached.parserUpgrade?{upgradeAttemptAt:now}:{})}):null;
- const token=crypto.randomUUID(),claimed=await store.db.prepare(`INSERT INTO news_agm_article_cache(canonical_url,lease_token,lease_until,attempted_at,payload_json,payload_hash) VALUES(?,?,?,?,?,?)
+ const budget=await agmDetailUsage(store,now);
+ if(!forceRevalidate&&budget.used>=budget.limit)throw Error('facts_daily_budget_deferred');
+ const token=crypto.randomUUID(),claimed=await store.db.prepare(`INSERT INTO news_agm_article_cache(canonical_url,lease_token,lease_until,attempted_at,payload_json,payload_hash)
+ SELECT ?,?,?,?,?,? WHERE ?=1 OR (SELECT COUNT(*) FROM news_agm_article_cache WHERE attempted_at>=?)<?
  ON CONFLICT(canonical_url) DO UPDATE SET lease_token=excluded.lease_token,lease_until=excluded.lease_until,attempted_at=excluded.attempted_at,checked_at=0,payload_json=COALESCE(excluded.payload_json,news_agm_article_cache.payload_json),payload_hash=COALESCE(excluded.payload_hash,news_agm_article_cache.payload_hash)
- WHERE lease_until<=? AND (attempted_at<=? OR ?=1 OR (?=1 AND payload_hash IS ? AND attempted_at=? AND (SELECT COUNT(*) FROM news_agm_article_cache a WHERE a.attempted_at>=?)<? AND NOT EXISTS(SELECT 1 FROM news_agm_article_cache a WHERE json_valid(a.payload_json) AND json_extract(a.payload_json,'$.upgradeAttemptAt')>?)))`)
- .bind(url,token,now+60000,now,attemptPayload,attemptPayload?await hash(attemptPayload):null,now,now-DAY,forceRevalidate?1:0,+cached.parserUpgrade,cached.row?.payload_hash??null,cached.row?.attempted_at??0,Math.floor((now+9*3600000)/DAY)*DAY-9*3600000,AGM_DETAIL_BUDGET,now-DAY).run();
- if(claimed.meta.changes!==1)throw Error('facts_recheck_busy');
+ WHERE lease_until<=? AND (attempted_at<=? OR ?=1 OR (?=1 AND payload_hash IS ? AND attempted_at=? AND NOT EXISTS(SELECT 1 FROM news_agm_article_cache a WHERE json_valid(a.payload_json) AND json_extract(a.payload_json,'$.upgradeAttemptAt')>?)))`)
+ .bind(url,token,now+60000,now,attemptPayload,attemptPayload?await hash(attemptPayload):null,+forceRevalidate,budget.since,budget.limit,now,now-DAY,forceRevalidate?1:0,+cached.parserUpgrade,cached.row?.payload_hash??null,cached.row?.attempted_at??0,now-DAY).run();
+ if(claimed.meta.changes!==1){
+  if(!forceRevalidate&&(await agmDetailUsage(store,now)).used>=budget.limit)throw Error('facts_daily_budget_deferred');
+  throw Error('facts_recheck_busy');
+ }
  let response;
  try{
   const headers={Accept:'text/html','Cache-Control':'no-cache'};
