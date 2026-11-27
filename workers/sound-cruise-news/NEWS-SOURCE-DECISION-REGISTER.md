@@ -1405,10 +1405,11 @@ all existing collection, maintenance recovery and budget policies.
 | source id | 出典 | 人間が確認する一次記事 | 機械取得の法務評価 | 収集有効 |
 |---|---|---|---|---|
 | audient | Audient | [iD Desktop発表](https://audient.com/news/2026/11/12/id-desktop-launch/) | UNKNOWN | false |
+| fender-newsroom | Fender Newsroom | [ゴジラ仕様のTelecaster 2モデルの発表](https://www.fender.com/newsroom/275209-fender-and-godzilla-unleash-the-next-chapter-of-the-collaboration/) | UNKNOWN | false |
 | martin-guitar | Martin Guitar | [John Mayer Road Series発表](https://www.martinguitar.com/news-111026-martin-guitar-brings-john-mayer-signature-artist-models-to-the-road-series.html) | UNKNOWN | false |
 | recording-king | Recording King | [RK Standard Series発表](https://recordingking.co/news/rk-standard-series/) | UNKNOWN | false |
 
-**運用判断は上記2 URLに限定する。** 公開された型名・記事公開日・発表内容を本人が確認し、独自の短い日本語見出し、メーカー名、原記事への通常リンクだけを掲載対象とする。本文、写真、ロゴ、原見出しの転載やフレーム内表示は対象外。個別許諾の取得を示す記録はなく、監査根拠には既存の `public_facts_conditions_review` を用いる。個別連絡による制約や利用条件の変更が分かった場合は本人確認を完了しない。
+**運用判断は表に記載された個別URLに限定する。** 公開された型名・記事公開日・発表内容を本人が確認し、独自の短い日本語見出し、メーカー名、原記事への通常リンクだけを掲載対象とする。本文、写真、ロゴ、原見出しの転載やフレーム内表示は対象外。個別許諾の取得を示す記録はなく、監査根拠には既存の `public_facts_conditions_review` を用いる。個別連絡による制約や利用条件の変更が分かった場合は本人確認を完了しない。
 
 - Audientは広報窓口で製品情報・発表資料を報道向けに提供している。公式ニュースで対象4機種を確認した。販売約款の適用対象は商品の購入・販売で、記事利用のライセンスを定めたものではない。記事の通常リンクに事前許可を求める条件は確認できなかった。[Media Room](https://audient.com/media-room/)・[Terms and Conditions of Sale](https://audient.com/terms-and-conditions/)
 - Recording KingはSt. Louis Musicが運営する公式Newsで日付、シリーズ名、オール単板仕様を公表している。同サイトの利用規約は文章・画像等の権利を留保している。公開規約には通常リンクの禁止や事前申請の定めを確認できなかった。発表済みの客観的事実のみを独立して記述し、国内流通・価格を推定しない。[利用規約](https://recordingking.co/privacy/)・[米国著作権局による事実と表現の説明](https://www.copyright.gov/help/faq/faq-protect.html)
@@ -1416,3 +1417,5 @@ all existing collection, maintenance recovery and budget policies.
 国内の二次3 URLは発見元として保持する。Audientは2枚から同一の一次URLに接続し、本人確認と最終判断は一次記事1件に対して行う。保存済み検索見出しが変わった場合は既存の対応関係を引き継がない。別記事、検索・取得、自動掲載への適用範囲は増やさない。
 
 Martin Guitarは上記の公式発表1件のみを人間確認の対象とする。公開された製品名・発表日の事実を独自見出しで紹介し、通常リンクで案内する。規約のコンテンツ複製・再利用の制限に従い、公式本文・写真・ロゴは使用しない。個別許諾済みとは扱わず、自動取得はOFF。[Website Policies](https://www.martinguitar.com/customer-service-2/website-policies.html)
+
+Fenderは上記の公式発表1件のみを本人確認の対象とする。発表時刻の11月23日16:00 PSTは11月24日09:00 JST。並行して配信された[日本語プレスリリース](https://prtimes.jp/main/html/rd/p/000000762.000021878.html)は発見元として保持する。[利用規約](https://www.fender.com/policies/terms-of-service)が制限する本文・画像などのコンテンツ利用は行わず、製品名・日付等の事実を独自見出しで紹介し、通常のリンクで案内する。素材の利用許諾や自動取得の許可とは扱わない。

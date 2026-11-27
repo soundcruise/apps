@@ -105,3 +105,28 @@ test('the verified Martin discovery offers the US primary announcement for human
  assert.equal(item.primaryReview.draft.fields.product,'OM-13E John Mayer／OMC-13E John Mayer');
  assert.equal(changed.primaryReview,undefined);
 });
+
+test('the Fender discovery opens the exact official announcement without confirming the facts',async()=>{
+ const s=await store(),at=Date.parse('2026-11-27T13:00:00+09:00');
+ const url='https://www.fender.com/newsroom/275209-fender-and-godzilla-unleash-the-next-chapter-of-the-collaboration/';
+ const hint={
+  url:'https://prtimes.jp/main/html/rd/p/000000762.000021878.html',
+  title:'「フェンダー」と「ゴジラ」のコラボレーション第2弾を発表！ | フェンダーミュージック株式会社のプレスリリース',
+  articleDraft:{},estimate:{relevance:'high',duplicate:'unknown'}
+ };
+ const [item,changed]=await addWebReview(s.db,[{...hint},{...hint,title:hint.title+' 続報'}],at);
+ assert.equal(item.reviewPresentation.group,'approvable');
+ assert.equal(item.reviewPresentation.formalReady,false);
+ assert.equal(item.primaryReview.url,url);
+ assert.equal(item.primaryReview.draft.fields.publishedAt,'2026-11-24');
+ assert.equal(item.primaryReview.draft.fields.productType,'electric_guitar_bass');
+ assert.equal(item.primaryReview.draft.humanConfirmed,false);
+ assert.equal(changed.primaryReview,undefined);
+ assert.equal(assistedSource(url).automatic,'not_allowed');
+ assert.equal(assistedSource(url+'other/'),null);
+ assert.equal(assistedSource(hint.url),null);
+ await s.db.prepare("INSERT INTO source_state(source_id,disabled) VALUES('fender-newsroom',1)").run();
+ const [stopped]=await addWebReview(s.db,[hint],at);
+ assert.notEqual(stopped.reviewPresentation?.group,'approvable');
+ assert.equal((await s.candidates()).length,0);
+});
