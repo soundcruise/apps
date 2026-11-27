@@ -135,5 +135,31 @@
       ]
     },
     "reason": "Martin公式発表で対象2機種と紹介条件を確認してください。"
+  },
+  {
+    "key": "fender-godzilla-primary",
+    "hints": [
+      {
+        "url": "https://prtimes.jp/main/html/rd/p/000000762.000021878.html",
+        "publishedAt": "2026-11-24",
+        "titleHash": "b158c3e53f99b8193564a4e19430e9db48eccee2f86e15ddcd8428f28c59fe77"
+      }
+    ],
+    "observedAt": "2026-11-27",
+    "reference": {
+      "url": "https://www.fender.com/newsroom/275209-fender-and-godzilla-unleash-the-next-chapter-of-the-collaboration/",
+      "publishedAt": "2026-11-24",
+      "headline": "Fender、ゴジラ仕様のTelecaster 2モデルを発表",
+      "productKind": "エレキギター",
+      "models": [
+        "Made in Japan Godzilla Telecaster Black Paisley",
+        "Fender Custom Shop Limited Edition Master Built Godzilla Telecaster"
+      ],
+      "notes": [
+        "発表は日本時間11月24日。Black Paisleyは国内12月4日発売予定。Custom Shopモデルの予約開始日は後日発表です。",
+        "製品名・発表日などの事実を独自見出しと公式リンクで紹介します。公式の本文・写真・ロゴは転載しません。"
+      ]
+    },
+    "reason": "Fender Newsroomで発表された2モデルと紹介条件を確認してください。"
   }
 ]

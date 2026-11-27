@@ -35,6 +35,7 @@ const entries = [
  ['esp','ESP / BIGBOSS','https://espguitars.co.jp/','official',null,'CONTACT'],
  // Registry identity for human confirmation only. No discovery route or Bot permission.
  ['audient','Audient','https://audient.com/','official',null,'UNKNOWN'],
+ ['fender-newsroom','Fender Newsroom','https://www.fender.com/','official',null,'UNKNOWN'],
  ['martin-guitar','Martin Guitar','https://www.martinguitar.com/','official',null,'UNKNOWN'],
  ['recording-king','Recording King','https://recordingking.co/','official',null,'UNKNOWN'],
  ['yamaha-newsroom','Yamaha newsroom','https://www.yamaha.com/','official',null,'CONTACT'],
