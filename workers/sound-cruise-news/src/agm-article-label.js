@@ -23,6 +23,9 @@ export function specificEditorialLabel(f,topic){
  if(f.format==='interview'&&['column','lesson','beginner','interview'].includes(f.articleType)&&subject&&(focus||topic))return `${subject}、${focus||topic}について語るインタビュー`;
  if(f.focus==='acoustic_records'&&!f.person)return null;
  if(focus&&['column','lesson','beginner'].includes(f.articleType))return `${subject?subject+'、':''}${focus}${f.focus==='acoustic_records'?'を紹介':'を解説'}`;
+ if(f.articleType==='review'&&f.trialPerformer!==undefined){
+  return f.section==='gears'&&f.trialPerformer===f.person&&factName(f.trialPerformer)&&f.models?.length===1&&factName(f.models[0])?f.trialPerformer+'が'+f.models[0]+'を試奏':null;
+ }
  if(f.articleType==='review')return f.models?.length&&f.models.length<=4&&f.models.every(factName)?`${f.models.join(' / ')}の試奏・レビュー記事を公開`:null;
  if(f.articleType==='equipment')return subject&&f.models?.length&&f.models.length<=4&&f.models.every(factName)?`${subject}、${f.models.length===1?f.models[0]+'の使用機材':f.models.length+'種類の愛用ギター'}を紹介`:null;
  if(f.articleType==='interview')return subject&&topic?`${subject}、${topic}について語る`:null;

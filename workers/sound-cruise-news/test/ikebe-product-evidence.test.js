@@ -125,3 +125,15 @@ test('encoded tag recognition never authorizes replacing a different saved model
  await c.s.db.prepare('UPDATE candidate_items SET product_facts=? WHERE id=?').bind(JSON.stringify(old),c.item.id).run();
  const r=await recover(c);assert.equal(r.outcome,'facts_identity_changed');assert.equal(r.recovered,false);assert.equal((await c.s.db.prepare('SELECT product_facts FROM candidate_items WHERE id=?').bind(c.item.id).first()).product_facts,JSON.stringify(old));
 });
+
+test('retail color variants produce a model-only draft and retain the publication date',async()=>{
+ const {structuredIkebeEvidence}=await import('../src/ikebe-structured-recovery.js');
+ const url='https://www.ikebe-gakki-pb.com/new_product/189999/';
+ const row={source_id:'ikebe',source_url:url,published_at:'2026-11-25T15:00:00.000Z'};
+ const title='ベースの新モデル「Feather Plus」が登場';
+ const sections=[['FTR4X','Black/Maple'],['FTR4X','Blue/Maple'],['FTR5X','Blue/Maple']].map(([model,finish])=>`<h2 class="wp-block-heading">Acme Sound<br>Feather Series ${model} (${finish})</h2><p class="wp-block-paragraph">${title}</p>`).join('');
+ const page=`<link rel="canonical" href="${url}"><article id="main"><div class="blog_title"><h1>${title}</h1><time class="sub_info_date" datetime="2026-11-26">2026年11月26日公開</time><time class="sub_info_date" datetime="2026-11-25">2026年11月25日更新</time><ul><li class="cate-bass">ベース</li></ul><a href="https://www.ikebe-gakki-pb.com/new_product/tag/acme/">Acme Sound</a></div><div class="main_wrap">${sections}</div></article>`;
+ assert.deepEqual(structuredIkebeEvidence(page,row,{reviewDraft:true}),{brand:'Acme Sound',product:'FTR4X／FTR5X',productType:'electric_guitar_bass',action:'introduction'});
+ assert.equal(structuredIkebeEvidence(page.replace('FTR5X','OTHER5X'),row,{reviewDraft:true}),null);
+ assert.throws(()=>structuredIkebeEvidence(page,{...row,published_at:'2026-11-24T15:00:00.000Z'},{reviewDraft:true}),/facts_date_changed/);
+});

@@ -11,7 +11,7 @@ import {recoverOfficialIdentity,validOfficialIdentity} from './official-identity
 import {parseShimamuraReviewEvidence} from './shimamura-review-evidence.js';
 import {parseSourcePolicyEvidence} from './source-policy-evidence.js';
 import {parseIkebeInformationalEvidence,productArticleIdentityRefinement} from './product-article-evidence.js';
-import {shimamuraMultiModelReview,parseShimamuraProductEvidence,validatedShimamuraProductFacts,SHIMAMURA_PRODUCT_PARSERS} from './shimamura-product-evidence.js';
+import {shimamuraReviewDraft,parseShimamuraProductEvidence,validatedShimamuraProductFacts,SHIMAMURA_PRODUCT_PARSERS} from './shimamura-product-evidence.js';
 import {parseNamedWorkshopEvidence} from './named-workshop-evidence.js';
 import {parseGuitarExhibition} from './guitar-exhibition-evidence.js';
 import {acquireAgmArticle,inspectAgmArticle,agmProof,agmProvenance} from './agm-acquisition.js';
@@ -166,7 +166,7 @@ export async function verifiedSurface(store,source,registry,row,now,pepper,{fetc
    if([401,403,451,429].includes(r.status)||r.status>=500)throw Error('facts_http_'+r.status);
    if(url!==source.robotsUrl&&optOut(r.headers.get('x-robots-tag')||''))throw Error('facts_optout');return r;
   };
-  cachedRobots??=initialPrimarySource(source)?robotCache?.get(source.id):null;
+  cachedRobots??=(initialPrimarySource(source)||source.id==='agm')?robotCache?.get(source.id):null;
   const useCached=cachedRobots?.id===source.id&&cachedRobots.checkedAt<=now&&now-cachedRobots.checkedAt<3600000;
   let robotResponse=useCached?{text:cachedRobots.text,status:cachedRobots.status??200}:await request(source.robotsUrl,512000),robots=robotsPolicy(robotResponse.text,source,robotResponse.status),evidence=await robotsEvidence(robotResponse.text);robotCache?.set(source.id,{id:source.id,url:source.robotsUrl,text:robotResponse.text,status:robotResponse.status,checkedAt:now});robotResponse=null;
   if(!evidence.matches(state.robotsHash)||!evidence.matches(source.robotsHash))throw Error('facts_robots_changed');
@@ -224,6 +224,11 @@ export async function verifiedSurface(store,source,registry,row,now,pepper,{fetc
     finally{for(const e of entries){e.title='';e.eventTitle='';}entries.length=0;}
    }
   }catch(error){
+   if(error.message==='facts_official_identity_missing'&&source.id==='shimamura'){
+    const draft=shimamuraReviewDraft(response.text,source,row);
+    if(draft)proof.reviewDraft=draft;
+    throw error;
+   }
    if(!['facts_scope_uncertain','facts_identity_changed','facts_identity_unconfirmed','facts_extraction_incomplete','facts_event_missing','facts_parser_failure','facts_date_changed','facts_release_date_conflict'].includes(error.message)||!['ikebe','shimamura'].includes(source.id))throw error;
    proof.parserFailures=[{parser:surface.parser,reason:error.message,...(error.factDiagnostics?{diagnostics:safeFactDiagnostics(error.factDiagnostics)}:{})}];
    try{
@@ -238,9 +243,13 @@ export async function verifiedSurface(store,source,registry,row,now,pepper,{fetc
     }
     items=[{id:row.id,sourceUrl:row.source_url,...parsed}];
    }catch(fallbackError){
-    if(source.id==='shimamura'&&(factFailureKind(fallbackError.message)==='extraction'||fallbackError.message==='facts_source_invalid')){
-     const draft=shimamuraMultiModelReview(response.text,source,row);
-     if(draft)proof.reviewDraft=draft;
+    if(factFailureKind(fallbackError.message)==='extraction'||fallbackError.message==='facts_source_invalid'){
+     if(source.id==='shimamura'){
+      const draft=shimamuraReviewDraft(response.text,source,row);
+      if(draft)proof.reviewDraft=draft;
+     }else{
+      try{const draft=structuredIkebeEvidence(response.text,row,{reviewDraft:true});if(draft)proof.reviewDraft=draft;}catch{/* No article-bound draft. Preserve the formal failure. */}
+     }
     }
     throw fallbackError;
    }
@@ -262,7 +271,7 @@ export async function verifiedSurface(store,source,registry,row,now,pepper,{fetc
    if(healthCode)await store.recordHealth({sourceId:source.id,...healthForOutcome(healthCode),checkedAt:now,nextEligibleAt:Math.max(publisherBackoff,now+DAY)});
   }
   await store.db.prepare('UPDATE news_facts_sources SET lease_until=0,outcome=?,items_json=?,proof_json=? WHERE source_id=? AND lease_token=?').bind(outcome,JSON.stringify(items),proof||approvedRecovery?JSON.stringify({...proof,...(approvedRecovery?{recoveryApproval:approvedRecovery}:{})}):null,cacheKey,token).run();
-  if(initialPrimarySource(source)&&proof)await discoveryState(store,source.id,row.source_url,now,{state:outcome==='verified_surface'?'evidence_insufficient':'parser_failed',reason:outcome,nextAction:outcome==='verified_surface'?'evaluate':'new_parser_or_evidence',parserVersion:PRIMARY_ANNOUNCEMENT_PARSER,evidenceRef:proof.responseHash,diagnostics:{stage:'facts',missingFields:proof.diagnostics?.missingFields||[]},evidence:{outcome,items,proof}});
+  if(initialPrimarySource(source)&&proof)await discoveryState(store,source.id,row.source_url,now,{state:outcome==='verified_surface'?'evidence_insufficient':'parser_failed',reason:outcome,candidateId:row.id,nextAction:outcome==='verified_surface'?'evaluate':'new_parser_or_evidence',parserVersion:PRIMARY_ANNOUNCEMENT_PARSER,evidenceRef:proof.responseHash,diagnostics:{stage:'facts',missingFields:proof.diagnostics?.missingFields||[]},evidence:{outcome,items,proof}});
  }
  const saved=await store.db.prepare('SELECT * FROM news_facts_sources WHERE source_id=?').bind(cacheKey).first();
  if(primary)console.info(JSON.stringify({event:'news_primary_acquisition',sourceId:source.id,candidateId:row.id,at:now,method:surface.method,outcome,requestCounts}));
@@ -325,7 +334,7 @@ export async function recheckFacts(store,input,now,registry,pepper,actor,options
  if(!await store.db.prepare('SELECT request_id FROM news_facts_rechecks WHERE request_id=? AND request_payload_hash=?').bind(input.requestId,payloadHash).first())throw Error('candidate_changed');
  const detail=await reviewDetail(store,row.id,now,registry,pepper);
  await recordDiscoveryResult(store,source,{url:row.source_url},now,{row:await store.db.prepare('SELECT * FROM candidate_items WHERE id=?').bind(row.id).first(),validation:detail.validation,result:{outcome,diagnostics}});
- return {id:row.id,outcome,recovered:!!patch,publisherAttempted,nextRetryAt,awaitingParserUpdate,failureKind:factFailureKind(outcome),validation:detail.validation,...(diagnostics?{diagnostics}:{})};
+ return {id:row.id,outcome,recovered:!!patch,publisherAttempted,nextRetryAt,awaitingParserUpdate,failureKind:factFailureKind(outcome),validation:detail.validation,...(detail.reviewPresentation?.readiness==='human_confirmation'?{assistedReviewReady:true}:{}),...(diagnostics?{diagnostics}:{})};
 }
 
 // Reuse the receipt-only Morris branch and the normal publication validator.

@@ -88,6 +88,7 @@ export async function setPublishInterest(store,input,now,registry,pepper,actor){
 }
 export function recheckOutcome(result,validation){
  if(validation.valid)return validation.relevance?.status==='REVIEW'?'HUMAN_REVIEW_REQUIRED':'RECOVERED_READY';
+ if(result?.assistedReviewReady)return 'HUMAN_REVIEW_REQUIRED';
  if(result?.recovered)return 'RECOVERED_STILL_BLOCKED';
  if(['conflict','uncertainty'].includes(factFailureKind(result?.outcome)))return 'HUMAN_REVIEW_REQUIRED';
  if(factFailureKind(result?.outcome)==='extraction')return 'PARSER_RETRY';
