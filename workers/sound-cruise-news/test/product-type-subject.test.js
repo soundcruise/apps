@@ -33,7 +33,7 @@ test('MONSTER multi-model power equipment is recovered without category/target-d
  assert.deepEqual(result.productFacts.models,['MONSTER POWER 8000','MONSTER POWER 8001']);
  assert.equal(result.productFacts.category,'recording_audio');assert.equal(result.publishedAt,row.published_at);
  assert.match(factualLabel(result.productFacts,result.eventType),/電源タップ/);
- assert.equal(SHIMAMURA_PRODUCT_PARSER,'shimamura-product-fields-16');
+ assert.equal(SHIMAMURA_PRODUCT_PARSER,'shimamura-product-fields-17');
 });
 
 for(const phrase of ['オーディオインターフェースを保護する電源タップ',
@@ -69,6 +69,37 @@ test('a pickup remains a pickup when it is the announced primary product',()=>{
  const parsed=parseShimamuraProductEvidence(article('Maker ギター用ピックアップ「PU-20」が登場',
   'Makerより、ギター用ピックアップ「PU-20」が登場しました。'),source,row);
  assert.equal(parsed.productFacts.productType,'guitar_pickup');
+ assert.equal(parsed.productFacts.category,'amps_effects');
+ assert.equal(factualLabel(parsed.productFacts,parsed.eventType),'Maker、ギター用ピックアップ「PU-20」が登場');
+});
+
+test('a model with pickup and fret specs in the headline is an electric guitar when its own build corroborates it',()=>{
+ const title='Makerよりピックアップ＆24フレット仕様の新モデル「AX-20」が登場';
+ const launch='Makerより、新モデル「AX-20」が登場しました。';
+ const hardware='ブルーのボディに24フレット仕様とピックアップのHSS配列を組み合わせた1本です。';
+ const original=article(title,launch+hardware);
+ const parsed=parseShimamuraProductEvidence(original,source,row);
+ assert.equal(parsed.productFacts.productType,'electric_guitar');
+ assert.equal(parsed.productFacts.category,'electric_guitar_bass');
+ assert.equal(factualLabel(parsed.productFacts,parsed.eventType),'Maker、エレキギター「AX-20」が登場');
+ // The same features in a different paragraph or related block cannot identify AX-20.
+ for(const extra of [`<p class="wp-block-paragraph">参考製品では${hardware}</p>`,`<aside>${hardware}</aside>`]){
+  assert.throws(()=>parseShimamuraProductEvidence(article(title,launch,extra),source,row),/facts_extraction_incomplete/);
+ }
+ for(const incomplete of [original.replace('HSS配列','配列'),article(title,launch+'別モデルの例：'+hardware)]){
+  assert.throws(()=>parseShimamuraProductEvidence(incomplete,source,row),/facts_extraction_incomplete/);
+ }
+});
+
+for(const [description,type,category,label] of [
+ ['アコースティックギター','acoustic_guitar','acoustic_guitar','アコースティックギター'],
+ ['エレキベース','bass_guitar','electric_guitar_bass','エレキベース']
+])test('explicit pickup-equipped '+type+' retains its instrument headline and category',()=>{
+ const parsed=parseShimamuraProductEvidence(article('Makerのピックアップ搭載モデル「GB-20」が登場',
+  `Makerより、ピックアップを搭載した${description}「GB-20」が登場しました。`),source,row);
+ assert.equal(parsed.productFacts.productType,type);
+ assert.equal(parsed.productFacts.category,category);
+ assert.equal(factualLabel(parsed.productFacts,parsed.eventType),`Maker、${label}「GB-20」が登場`);
 });
 
 test('subject-bound appearance yields an appearance headline and needs its own provenance',async()=>{

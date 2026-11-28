@@ -4,6 +4,17 @@
 export const ACOUSTIC_STRINGS_PATTERN=/(?:アコースティックギター|アコギ)(?:専用|用)?(?:の)?(?:コーティング)?弦(?!付き|付属|を同梱|が付属)/;
 export const POWER_DISTRIBUTION_PATTERN=/電源タップ|電源プロテクター|パワー[・ ]?(?:ディストリビューター|コンディショナー)|\bpower (?:strip|distributor|distribution unit|conditioner|protector)\b/i;
 
+const pickupNoun=/ピックアップ|\bpickups?\b/i;
+function fittedPickup(suffix){
+ return /^(?:の)?(?:搭載|装備|採用|(?:(?:SSH|HSS|HSH|HH|SSS)\s*)?(?:配列|レイアウト|構成))/i.test(suffix)||
+  /^を[^。！？!?：:\n]{0,45}(?:搭載|採用|装備)/.test(suffix)||
+  /^\s*(?:[&＆・、,]|や|と|および|及び)\s*\d{1,2}\s*フレット仕様/.test(suffix)||
+  /^[- ]equipped\b/i.test(suffix);
+}
+export function hasFittedPickup(text){
+ return [...text.matchAll(new RegExp(pickupNoun.source,'gi'))].some(m=>fittedPickup(text.slice(m.index+m[0].length)));
+}
+
 function targetMention(before,after){
  const prefix=before.slice(-90),suffix=after.slice(0,250).replace(/^\s*(?:「[^」]{1,110}」|"[^"]{1,110}")/,'').slice(0,130);
  // A string set can name multiple intended instruments before the usage marker.
@@ -41,7 +52,11 @@ export function subjectProductTypes(scopes,definitions){
   const pattern=definition.at(-1);
   return scopes.some(scope=>typeof scope==='string'&&scope.split(/[。！？!?\n]/).some(sentence=>{
    const matches=sentence.matchAll(new RegExp(pattern.source,[...new Set(pattern.flags+'g')].join('')));
-   for(const match of matches)if(!targetMention(sentence.slice(0,match.index),sentence.slice(match.index+match[0].length)))return true;
+   for(const match of matches){
+    const after=sentence.slice(match.index+match[0].length);
+    if(pickupNoun.test(match[0])&&fittedPickup(after))continue;
+    if(!targetMention(sentence.slice(0,match.index),after))return true;
+   }
    return false;
   }));
  });

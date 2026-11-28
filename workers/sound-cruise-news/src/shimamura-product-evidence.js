@@ -7,9 +7,9 @@ import {optOut} from './policy.js';
 import {validOfficialIdentity,sourceIdentityContext,resolveOfficialIdentity} from './official-identity.js';
 import {validHeadlineEvidence,enrichHeadlineFacts,releaseDateFields} from './headline-evidence.js';
 import {explicitProductAction,validatedProductEvent,productActionSuffix} from './product-event.js';
-import {subjectProductTypes,isProductSubjectMention,ACOUSTIC_STRINGS_PATTERN,POWER_DISTRIBUTION_PATTERN} from './product-type-evidence.js';
-export const SHIMAMURA_PRODUCT_PARSER='shimamura-product-fields-16';
-export const SHIMAMURA_PRODUCT_PARSERS=Object.freeze(['shimamura-product-fields-5','shimamura-product-fields-6','shimamura-product-fields-7','shimamura-product-fields-8','shimamura-product-fields-9','shimamura-product-fields-10','shimamura-product-fields-11','shimamura-product-fields-12','shimamura-product-fields-13','shimamura-product-fields-14','shimamura-product-fields-15',SHIMAMURA_PRODUCT_PARSER]);
+import {subjectProductTypes,isProductSubjectMention,hasFittedPickup,ACOUSTIC_STRINGS_PATTERN,POWER_DISTRIBUTION_PATTERN} from './product-type-evidence.js';
+export const SHIMAMURA_PRODUCT_PARSER='shimamura-product-fields-17';
+export const SHIMAMURA_PRODUCT_PARSERS=Object.freeze(['shimamura-product-fields-5','shimamura-product-fields-6','shimamura-product-fields-7','shimamura-product-fields-8','shimamura-product-fields-9','shimamura-product-fields-10','shimamura-product-fields-11','shimamura-product-fields-12','shimamura-product-fields-13','shimamura-product-fields-14','shimamura-product-fields-15','shimamura-product-fields-16',SHIMAMURA_PRODUCT_PARSER]);
 // Preserve known valid historical proof versions; unknown/bad versions are never accepted.
 export const shimamuraProofParserSupported=(version,minVersion=7)=>SHIMAMURA_PRODUCT_PARSERS.includes(version)&&Number(version.split('-').at(-1))>=minVersion;
 const cls=(n,c)=>(n?.attribs?.class||'').split(/\s+/).includes(c);
@@ -25,9 +25,35 @@ const primaryAction=s=>explicitProductAction(s.replace(/限定(?:の)?(?:スペ�
 const norm=s=>s.normalize('NFKC').replace(/[®™\s]/g,'').toLowerCase();
 const softwareInstrument=/Kontakt用[^。]{0,60}インストゥルメント|ソフトウェア音源|ソフトウェアシンセサイザー|サンプル(?:音源|ライブラリー)|スコアリング音源/;
 const types=[['acoustic_guitar_strings','アコースティックギター用弦','acoustic_guitar',ACOUSTIC_STRINGS_PATTERN],['maintenance_tool_kit','楽器メンテナンス工具セット','electric_guitar_bass',MAINTENANCE_TOOL_KIT],['bass_amp','ベースアンプ','amps_effects',/ベースアンプ|ベース用アンプ/],['software_instrument','ソフトウェア音源','dtm_software',softwareInstrument],['power_distribution','電源タップ','recording_audio',POWER_DISTRIBUTION_PATTERN],['voicebank','音声合成ソフト','dtm_software',/ボイスバンク|音声合成ソフト/],['effect_pedal','エフェクター','amps_effects',/エフェクター|(?:ディレイ|歪み|オーバードライブ|ディストーション)?ペダル(?!ボード)|オーバードライブ/],['guitar_pickup','ギター用ピックアップ','amps_effects',/ピックアップ(?!レイアウト|配列|構成)/],['guitar','ギター','electric_guitar_bass',/ギター(?!専用|用)|ストラトキャスター|テレキャスター|セミホロウ/],['audio_plugin','プラグイン','dtm_software',/プラグイン/],['guitar_amp','ギターアンプ','amps_effects',/ギターアンプ|シグネ(?:イ|ー)?チャ[ーア]?[A-Za-z0-9 .®™'-]{0,40}アンプ/],['audio_interface','オーディオインターフェース','recording_audio',/オーディオ[・ ]?インターフェ[イー]ス/],['subwoofer','サブウーファー','recording_audio',/サブウーファー/]];
+const electricGuitarType=['electric_guitar','エレキギター','electric_guitar_bass',/エレキギター|エレクトリック[・ ]?ギター|ストラトキャスター|テレキャスター|\belectric guitar\b/i];
+const instrumentTypes=[
+ ['acoustic_guitar','アコースティックギター','acoustic_guitar',/(?:アコースティック[・ ]?ギター|アコギ)(?!専用|用)/],
+ ['electro_acoustic','エレアコ','acoustic_guitar',/エレアコ|エレクトリック[・ ]?アコースティック[・ ]?ギター/],
+ ['bass_guitar','エレキベース','electric_guitar_bass',/エレキベース|エレクトリック[・ ]?ベース|\belectric bass\b/i],
+ electricGuitarType
+];
+const allTypes=[...types,...instrumentTypes];
+const pickupType=types.find(([type])=>type==='guitar_pickup');
+
+function pickupEquippedInstrument(title,launch,overview,models){
+ if(!overview||!models.every(model=>norm(launch).includes(norm(model))))return null;
+ const explicit=subjectProductTypes([launch],instrumentTypes);
+ const specific=explicit.some(([type])=>type==='electro_acoustic')?explicit.filter(([type])=>type!=='acoustic_guitar'):explicit;
+ if(specific.length===1)return specific[0];
+ if(specific.length>1)return null;
+ // When the launch line names only the model, corroborate it in the title
+ // and use the same overview's body, fret count and electric pickup layout.
+ const shape=/(?:ボディ|ボデイ).{0,45}\d{1,2}\s*フレット|\d{1,2}\s*フレット.{0,45}(?:ボディ|ボデイ)/;
+ const electricLayout=/\b(?:SSH|HSS|HSH|HH|SSS)\s*(?:配列|レイアウト|構成)/i;
+ if(models.every(model=>norm(title).includes(norm(model)))&&
+    !/ベース|アコギ|アコースティック|ウクレレ|マンドリン|\b(?:bass|acoustic)\b/i.test(title+' '+overview)&&
+    overview.split(/[。！？!?]/).some(sentence=>!denied.test(sentence)&&!/別モデル|他社|例えば/.test(sentence)&&
+     shape.test(sentence)&&electricLayout.test(sentence)))return electricGuitarType;
+ return null;
+}
 export function shimamuraProductSurface(row,source){return source?.id==='shimamura'&&row.source_id===source.id&&source.discoveryUrl==='https://www.shimamura.co.jp/update/common/new-item/'&&urlOK(row.source_url)&&['pending','reopened'].includes(row.review_status)?{url:row.source_url,method:'explicit_shimamura_product_fields',parser:SHIMAMURA_PRODUCT_PARSER}:null;}
-export function validatedShimamuraProductFacts(f){return !!f&&validCoDevelopment(f)&&validHeadlineEvidence(f)&&f.identifierBasis==='explicit_shimamura_product_fields'&&f.listingSource==='shimamura'&&urlOK(f.articleUrl)&&brandOK(f.brand)&&Array.isArray(f.models)&&f.models.length>=1&&f.models.length<=4&&f.models.every(nameOK)&&new Set(f.models).size===f.models.length&&f.product===f.models.join(' / ')&&f.product.length<=110&&f.version===null&&types.some(([t,,c])=>t===f.productType&&c===f.category)&&(!f.productEvent||validatedProductEvent(f.productEvent))&&(!f.appearanceEvidence||f.appearanceEvidence.basis==='verified_primary_article'&&f.appearanceEvidence.product===f.product&&Object.keys(f.appearanceEvidence).every(k=>['basis','product'].includes(k)))&&(f.signatureModel===undefined||f.signatureModel===true&&['guitar','guitar_amp'].includes(f.productType))&&(!f.officialIdentity||validOfficialIdentity(f.officialIdentity,f.articleUrl,f.brand,f.product))&&(!f.editionMarket||f.editionMarket==='Japan'&&f.productEvent?.action==='limited_edition');}
-export function shimamuraProductLabel(f,event){if(!validatedShimamuraProductFacts(f)||!['new_product','release'].includes(event))return null;const type=types.find(([t])=>t===f.productType)[1],subject=`${f.brand}、${f.signatureModel?'シグネチャー':''}${type}「${f.product}」`;return subject+(f.productEvent?.action==='limited_edition'&&f.editionMarket==='Japan'?`の日本限定モデルを${event==='release'?'発売':'発表'}`:f.productEvent?productActionSuffix(f.productEvent):event==='release'?'を発売':f.appearanceEvidence?'が登場':'を発表');}
+export function validatedShimamuraProductFacts(f){return !!f&&validCoDevelopment(f)&&validHeadlineEvidence(f)&&f.identifierBasis==='explicit_shimamura_product_fields'&&f.listingSource==='shimamura'&&urlOK(f.articleUrl)&&brandOK(f.brand)&&Array.isArray(f.models)&&f.models.length>=1&&f.models.length<=4&&f.models.every(nameOK)&&new Set(f.models).size===f.models.length&&f.product===f.models.join(' / ')&&f.product.length<=110&&f.version===null&&allTypes.some(([t,,c])=>t===f.productType&&c===f.category)&&(!f.productEvent||validatedProductEvent(f.productEvent))&&(!f.appearanceEvidence||f.appearanceEvidence.basis==='verified_primary_article'&&f.appearanceEvidence.product===f.product&&Object.keys(f.appearanceEvidence).every(k=>['basis','product'].includes(k)))&&(f.signatureModel===undefined||f.signatureModel===true&&['guitar','electric_guitar','acoustic_guitar','electro_acoustic','bass_guitar','guitar_amp'].includes(f.productType))&&(!f.officialIdentity||validOfficialIdentity(f.officialIdentity,f.articleUrl,f.brand,f.product))&&(!f.editionMarket||f.editionMarket==='Japan'&&f.productEvent?.action==='limited_edition');}
+export function shimamuraProductLabel(f,event){if(!validatedShimamuraProductFacts(f)||!['new_product','release'].includes(event))return null;const type=allTypes.find(([t])=>t===f.productType)[1],subject=`${f.brand}、${f.signatureModel?'シグネチャー':''}${type}「${f.product}」`;return subject+(f.productEvent?.action==='limited_edition'&&f.editionMarket==='Japan'?`の日本限定モデルを${event==='release'?'発売':'発表'}`:f.productEvent?productActionSuffix(f.productEvent):event==='release'?'を発売':f.appearanceEvidence?'が登場':'を発表');}
 export function parseShimamuraProductEvidence(html,source,row,{officialIdentity=null}={}){
  if(!shimamuraProductSurface(row,source))throw Error('facts_source_invalid');if(typeof html!=='string'||new TextEncoder().encode(html).length>512000)throw Error('facts_response_too_large');const htmlForIdentity=officialIdentity?html:null;let doc=parseDocument(html);html='';
  try{
@@ -39,7 +65,8 @@ export function parseShimamuraProductEvidence(html,source,row,{officialIdentity=
   // A tuning mode for guitar/bass is not an instrument definition. The bounded
   // primary-announcement parser owns clip-tuner identity/type corroboration.
   if(/クリップチューナー/.test(title))throw Error('facts_scope_uncertain');
-  const intro=root.children.filter(n=>n.name==='p'&&cls(n,'wp-block-paragraph')&&!hidden(n)).map(plain).filter(p=>p!=='目次に戻る').slice(0,2).join(' ');
+  const paragraphs=root.children.filter(n=>n.name==='p'&&cls(n,'wp-block-paragraph')&&!hidden(n)).map(plain).filter(p=>p!=='目次に戻る');
+  const overview=paragraphs.slice(0,2),intro=overview.join(' ');
   const statements=intro.split(/[。!?！？]/).filter(s=>!denied.test(s)&&/(?:発表され|登場(?:しました|します|いたします)|ラインナップに加わ(?:ります|りました)|発売)/.test(s));if(!statements.length)throw Error('facts_event_missing');
   const launch=statements[0].split(/新シリーズとして/).at(-1);
   // A future-tense release claim conflicts with an explicitly earlier release
@@ -72,7 +99,19 @@ export function parseShimamuraProductEvidence(html,source,row,{officialIdentity=
   const corroboratingModels=japaneseIdentity?additionalQuotes:[];
   if(!officialIdentity&&!models.every(m=>norm(title).includes(norm(m))||productHeads.some(h=>norm(h).includes(norm(m)))||corroboratingModels.some(x=>norm(x)===norm(m))))throw factFailure('facts_identity_unconfirmed',{stage:'model_binding',missingFields:['model_corroboration'],checks:{modelsCount:models.length,titleOrProductHeadingBound:false}});
   // Type comes from the subject/title, never the listing category or related products.
-  const secondaryScope=root.children.filter(n=>n.name==='p'&&cls(n,'wp-block-paragraph')&&!hidden(n)).map(plain).filter(p=>p!=='目次に戻る').slice(0,4).filter(s=>!denied.test(s)&&! /関連商品|参考製品|付属品|例えば|他社/.test(s)).join(' ');let matches=subjectProductTypes([title,launch],types);if(!matches.length)matches=subjectProductTypes([secondaryScope],types);if(matches.some(([t])=>t==='guitar_pickup'))matches=matches.filter(([t])=>t!=='guitar');if(matches.some(([t])=>t==='guitar_amp'))matches=matches.filter(([t])=>t!=='guitar');if(matches.some(([t])=>t==='effect_pedal'))matches=matches.filter(([t])=>t!=='guitar');if(matches.some(([t])=>t==='maintenance_tool_kit'))matches=matches.filter(([t])=>t==='maintenance_tool_kit');if(matches.some(([t])=>t==='bass_amp'))matches=matches.filter(([t])=>t!=='guitar_amp'&&t!=='guitar');if(matches.length!==1)throw factFailure('facts_extraction_incomplete',{stage:'product_type',missingFields:['productType'],checks:{typeMatches:matches.length}});
+  const secondaryScope=paragraphs.slice(0,4).filter(s=>!denied.test(s)&&!/関連商品|参考製品|付属品|例えば|他社/.test(s)).join(' ');
+  let matches=subjectProductTypes([title,launch],types);
+  const definingParagraph=overview.find(p=>p.includes(launch));
+  const pickupIsFeature=hasFittedPickup(title+'\n'+(definingParagraph||''))&&!matches.includes(pickupType);
+  if(pickupIsFeature&&matches.every(([type])=>type==='guitar')){
+   const instrument=pickupEquippedInstrument(title,launch,definingParagraph,models);
+   if(instrument)matches=[instrument];
+  }
+  if(!matches.length&&!pickupIsFeature)matches=subjectProductTypes([secondaryScope],types);
+  if(matches.some(([t])=>['guitar_pickup','guitar_amp','effect_pedal'].includes(t)))matches=matches.filter(([t])=>t!=='guitar');
+  if(matches.some(([t])=>t==='maintenance_tool_kit'))matches=matches.filter(([t])=>t==='maintenance_tool_kit');
+  if(matches.some(([t])=>t==='bass_amp'))matches=matches.filter(([t])=>t!=='guitar_amp'&&t!=='guitar');
+  if(matches.length!==1)throw factFailure('facts_extraction_incomplete',{stage:'product_type',missingFields:['productType'],checks:{typeMatches:matches.length}});
   const titleAction=primaryAction(title);const boundActions=statements.filter(s=>models.every(m=>norm(s).includes(norm(m)))).map(primaryAction).filter(Boolean);const bodyActions=[...new Map(boundActions.map(a=>[a.action+':'+a.signal,a])).values()];const action=bodyActions.length===1&&titleAction?.action===bodyActions[0].action?bodyActions[0]:titleAction||(bodyActions.length===1?bodyActions[0]:null);if(/限定|新色|コラボ|復刻/.test(title)&&!action)throw Error('facts_scope_uncertain');if(action&&!statements.some(s=>primaryAction(s)?.action===action.action&&primaryAction(s)?.signal===action.signal))throw Error('facts_scope_uncertain');
   if(matches.some(([t])=>t==='maintenance_tool_kit'))matches=matches.filter(([t])=>t==='maintenance_tool_kit');
   const [productType,,category]=matches[0];const collaboration=coDevelopment(title,intro,models[0]);const facts={brand,...(collaboration?{coDevelopment:collaboration}:{}),product:models.join(' / '),models,version:null,category,productType,...(['acoustic_guitar_strings','software_instrument','power_distribution','guitar_amp','audio_interface','subwoofer','voicebank','effect_pedal'].includes(productType)?{productTypeEvidence:{product:models.join(' / '),basis:'verified_primary_article'}}:{}),...(officialIdentity?{officialIdentity}:{}),identifierBasis:'explicit_shimamura_product_fields',listingSource:source.id,articleUrl:row.source_url,...(/発売します/.test(launch)?{releaseEvent:{action:'scheduled_release',basis:'verified_primary_article'}}:{}),...(action?{productEvent:{...action,basis:'verified_primary_article'}}:{}),...(/シグネ(?:イ|ー)?チャ[ーア]?(?:モデル|[A-Za-z0-9 .®™'-]{0,40}アンプ)/.test(launch)?{signatureModel:true}:{}),...(action?.action==='limited_edition'&&/日本限定/.test(title)&&/日本限定/.test(intro)?{editionMarket:'Japan'}:{})};
