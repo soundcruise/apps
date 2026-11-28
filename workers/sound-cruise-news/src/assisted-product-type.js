@@ -3,6 +3,7 @@
 export const productTypes={
  condenser_microphone:['コンデンサーマイク','recording_audio'],effect_plugin:['エフェクトプラグイン','dtm_software'],
  acoustic_guitar_strings:['アコースティックギター用弦','acoustic_guitar'],
+ pick_holder:['ピック用キーホルダー','electric_guitar_bass'],
  studio_monitor:['モニタースピーカー','recording_audio'],
  sd_audio_player:['SDオーディオプレーヤー','media_other'],
  wireless_speaker:['ワイヤレススピーカー','media_other'],party_speaker:['パーティースピーカー','media_other'],
@@ -18,6 +19,7 @@ export const productTypes={
 const vocabulary={
  condenser_microphone:['コンデンサーマイク','真空管コンデンサーマイク'],effect_plugin:['エフェクトプラグイン','エフェクト・プラグイン'],
  acoustic_guitar_strings:['アコースティックギター弦','アコギ弦'],
+ pick_holder:['ピック用キーホルダー'],
  studio_monitor:['モニタースピーカー','スタジオモニタースピーカー','studio monitor speaker'],
  sd_audio_player:['SDプレーヤー','SDオーディオプレーヤー'],
  wireless_speaker:['ワイヤレススピーカー','Bluetoothスピーカー'],party_speaker:['パーティースピーカー'],

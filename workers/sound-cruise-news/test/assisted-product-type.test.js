@@ -7,14 +7,14 @@ const examples=[
  ['エレアコ用ピックアップ','pickup','amps_effects',['electro_acoustic']],['アコギ用プリアンプ','preamp','amps_effects',['acoustic_guitar']],
  ['ギター用アンプ','guitar_amp','amps_effects',['guitar']],['ギターアンプ用フットスイッチ','footswitch','amps_effects',['guitar_amp']],
  ['ギター用チューナー','tuner','electric_guitar_bass',['guitar']],['アコギ用弦','acoustic_guitar_strings','acoustic_guitar',['acoustic_guitar']],
- ['ギター用ケース','guitar_case','electric_guitar_bass',['guitar']],['エレアコ対応エフェクター','effect','amps_effects',['electro_acoustic']],
+ ['ギター用ケース','guitar_case','electric_guitar_bass',['guitar']],['ピック用キーホルダー','pick_holder','electric_guitar_bass',[]],['エレアコ対応エフェクター','effect','amps_effects',['electro_acoustic']],
  ['アコギ（ケース付属）','acoustic_guitar','acoustic_guitar',[]],['ギター用ピックアップ（対応機器：エレアコ）','pickup','amps_effects',['electro_acoustic','guitar']]
 ];
 async function setup(){const s=await store();await s.db.prepare('UPDATE news_controls SET publication_enabled=1').run();return s;}
 function parse(phrase,mode='field'){const information='記事公開日：2026年10月28日\n'+(mode==='field'?'ブランド：Yamaha\n製品名：MODEL-100\n種別：'+phrase+'\n出来事：紹介':'Yamahaは'+phrase+'「MODEL-100」を紹介しました。');return parseAssistedPaste({sourceId:'yamaha',url,information});}
 for(const [phrase,type,category,targets]of examples)for(const mode of ['field','sentence'])test(`${mode}: ${phrase} -> facts/label/category/validation/READY`,async()=>{
  const p=parse(phrase,mode);assert(p.valid,JSON.stringify(p));assert.equal(p.fields.productType,type);assert.equal(p.typeResolution.confidence,'explicit_main_noun');assert.deepEqual(p.typeResolution.usageTargets,targets);
- const s=await setup(),input={...p.fields,confirmed:true,requestId:'isolated-type-request-0001'},d=await prepareAssisted(s,input,now,SOURCES,pepper);assert(d.valid);assert.equal(d.category,category);assert.equal(d.label,'Yamaha、'+({acoustic_guitar:'アコースティックギター',electro_acoustic:'エレアコ',pickup:'ギター用ピックアップ',guitar_amp:'ギターアンプ',preamp:'ギター用プリアンプ',footswitch:'フットスイッチ',tuner:'ギター用チューナー',acoustic_guitar_strings:'アコースティックギター用弦',strings:'ギター用弦',guitar_case:'ギター用ケース',effect:'エフェクター'})[type]+'「MODEL-100」を紹介');assert.equal(d.facts.typeEvidence.productType,type);
+ const s=await setup(),input={...p.fields,confirmed:true,requestId:'isolated-type-request-0001'},d=await prepareAssisted(s,input,now,SOURCES,pepper);assert(d.valid);assert.equal(d.category,category);assert.equal(d.label,'Yamaha、'+({acoustic_guitar:'アコースティックギター',electro_acoustic:'エレアコ',pickup:'ギター用ピックアップ',guitar_amp:'ギターアンプ',preamp:'ギター用プリアンプ',footswitch:'フットスイッチ',tuner:'ギター用チューナー',acoustic_guitar_strings:'アコースティックギター用弦',strings:'ギター用弦',guitar_case:'ギター用ケース',pick_holder:'ピック用キーホルダー',effect:'エフェクター'})[type]+'「MODEL-100」を紹介');assert.equal(d.facts.typeEvidence.productType,type);
  const result=await saveAssisted(s,input,now,SOURCES,pepper,actor);assert(result.validation.valid);const row=await s.db.prepare('SELECT * FROM candidate_items').first();assert.equal(row.review_status,'pending');assert.equal(JSON.parse(row.product_facts).productType,type);assert.equal(JSON.parse(row.facts_provenance).publisherHttpRequests,0);
  for(const t of ['news_decision_ledger','news_operator_feedback','news_shadow_evaluations'])assert.equal((await s.db.prepare('SELECT COUNT(*) n FROM '+t).first()).n,0);
 });

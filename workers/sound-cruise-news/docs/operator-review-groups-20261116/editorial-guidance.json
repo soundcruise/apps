@@ -44,5 +44,10 @@
     "url": "https://www.shimamura.co.jp/update/dtm-recording/2026/11/111462/",
     "reason": "ドラム収音用マイクキットです。アコギ弾き語りへの関連性を判断してください。",
     "reference": "docs/human-ready-20261116/review-information.json"
+  },
+  {
+    "url": "https://www.ikebe-gakki-pb.com/new_product/174226/",
+    "reason": "KA-87／KA-47／KA-251Eは島村楽器の記事で掲載済みです。今回の池部記事も同じ3機種の紹介です。",
+    "reference": "https://www.shimamura.co.jp/update/dtm-recording/2026/11/116082/"
   }
 ]
