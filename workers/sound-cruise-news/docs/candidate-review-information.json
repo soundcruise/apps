@@ -670,5 +670,77 @@
         }
       ]
     }
+  },
+  {
+    "information": {
+      "version": 1,
+      "url": "https://www.ikebe-gakki-pb.com/new_product/174243/",
+      "source": {
+        "label": "原記事と既存候補の公開日による確認用下書き",
+        "url": "https://www.ikebe-gakki-pb.com/new_product/174243/"
+      },
+      "fields": {
+        "brand": "Lovetone",
+        "product": "Meatball 2／Doppelganger",
+        "productType": "effect",
+        "action": "introduction",
+        "publishedAt": "2026-11-27",
+        "label": "Lovetoneのエフェクター「Meatball 2／Doppelganger」が新仕様で登場"
+      },
+      "notes": [
+        {
+          "label": "掲載前の注意",
+          "value": "池部の紹介記事です。Meatball 2はフィルター系、Doppelgangerはフェイザー／ビブラートです。"
+        }
+      ]
+    }
+  },
+  {
+    "information": {
+      "version": 1,
+      "url": "https://www.shimamura.co.jp/update/guitar-bass/2026/11/118652/",
+      "source": {
+        "label": "原記事と既存候補の公開日による確認用下書き",
+        "url": "https://www.shimamura.co.jp/update/guitar-bass/2026/11/118652/"
+      },
+      "fields": {
+        "brand": "PICKS",
+        "product": "ハメパチ",
+        "productType": "pick_holder",
+        "action": "introduction",
+        "publishedAt": "2026-11-27",
+        "label": "PICKSのピック用キーホルダー「ハメパチ」がモデルチェンジ"
+      },
+      "notes": [
+        {
+          "label": "掲載前の注意",
+          "value": "ピックを飾るアクセサリーです。おにぎり型とティアドロップ型の2種があります。"
+        }
+      ]
+    }
+  },
+  {
+    "information": {
+      "version": 1,
+      "url": "https://www.shimamura.co.jp/update/guitar-bass/2026/11/118847/",
+      "source": {
+        "label": "原記事と既存候補の公開日による確認用下書き",
+        "url": "https://www.shimamura.co.jp/update/guitar-bass/2026/11/118847/"
+      },
+      "fields": {
+        "brand": "Sterling by Music Man",
+        "product": "RAY34FM-ANV",
+        "productType": "electric_guitar_bass",
+        "action": "introduction",
+        "publishedAt": "2026-11-26",
+        "label": "Sterling by Music Manの50周年記念ベース「RAY34FM-ANV」を島村楽器が紹介"
+      },
+      "notes": [
+        {
+          "label": "掲載前の注意",
+          "value": "既報のRAY34 Pearl Whiteとの重複を避け、フレイムメイプル化粧板を採用したRAY34FM-ANVに絞っています。"
+        }
+      ]
+    }
   }
 ]
